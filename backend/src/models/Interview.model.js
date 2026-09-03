@@ -49,6 +49,11 @@ const interviewSchema = new mongoose.Schema(
       enum: ['entry', 'mid', 'senior', 'lead', 'executive'],
       default: 'mid',
     },
+    difficulty: {
+      type: String,
+      enum: ['easy', 'medium', 'hard'],
+      default: 'medium',
+    },
     questionTypes: {
       type: [String],
       enum: ['technical', 'behavioral', 'situational', 'hr', 'culture_fit'],

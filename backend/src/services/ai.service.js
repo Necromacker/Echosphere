@@ -25,6 +25,7 @@ const formatPrompt = (template, vars) => {
  * @param {string} params.jobTitle
  * @param {string} params.jobDescription
  * @param {string} params.experienceLevel
+ * @param {string} params.difficulty
  * @param {string[]} params.questionTypes
  * @param {number} params.numberOfQuestions
  * @param {string|null} params.resumeText
@@ -34,6 +35,7 @@ const generateInterviewQuestions = async ({
   jobTitle,
   jobDescription,
   experienceLevel,
+  difficulty = 'medium',
   questionTypes = ['technical', 'behavioral'],
   numberOfQuestions = 10,
   resumeText = null,
@@ -66,6 +68,7 @@ ${optimizedContext}
 
 Job Title: ${jobTitle}
 Experience Level: ${experienceLevel}
+Interview Difficulty: ${difficulty}
 
 Generate:
 ${requestedTypes}
@@ -74,6 +77,7 @@ Rules:
 - STRICT GROUNDING: You MUST base every single question ONLY on the provided retrieved chunks above.
 - If a technology or experience is not mentioned in the context, DO NOT generate a question about it.
 - Questions must match candidate skill level (${experienceLevel}).
+- Every question must be exactly ${difficulty} difficulty. ${difficulty === 'easy' ? 'Use approachable core concepts and straightforward scenarios.' : difficulty === 'hard' ? 'Use advanced, ambiguous, real-world scenarios that require trade-off reasoning.' : 'Use practical scenarios that require sound working knowledge.'}
 - Avoid generic questions.
 ${firstQuestionRule}
 - Behavioral questions should use STAR method format.
@@ -122,7 +126,7 @@ ${responseShape}
   const trimmed = allQuestions.slice(0, numberOfQuestions).map((question) => ({
     questionText: question.questionText || question.question || '',
     category: question.category,
-    difficulty: question.difficulty || 'medium',
+    difficulty,
     expectedKeywords: Array.isArray(question.expectedKeywords) ? question.expectedKeywords : [],
   }));
   return trimmed.map((q, i) => ({ ...q, order: i + 1 }));
@@ -131,6 +135,7 @@ ${responseShape}
 const generateNextInterviewQuestion = async ({
   jobTitle,
   experienceLevel,
+  difficulty = 'medium',
   currentQuestion,
   candidateAnswer,
   adaptiveContext,
@@ -165,12 +170,13 @@ const generateNextInterviewQuestion = async ({
 
 The interviewer role is: ${roleByCategory[nextCategory] || 'General Interviewer'}
 Experience level: ${experienceLevel || 'mid'}
+Interview difficulty: ${difficulty}
 Previous question: ${currentQuestion.questionText}
 Candidate answer: ${candidateAnswer || '(No substantive answer provided)'}
 Updated interview context:
 ${JSON.stringify(adaptiveContext, null, 2)}
 
-${forceNewQuestion ? 'Generate a completely new independent question. Do not ask a follow-up.' : 'If the answer is substantive, ask exactly one concise follow-up based on the previous question.'} After one follow-up, switch to a different selected interviewer category. Do not repeat an earlier question. Use a customer or business-impact angle when the technical answer does not explain impact.
+${forceNewQuestion ? 'Generate a completely new independent question. Do not ask a follow-up.' : 'If the answer is substantive, ask exactly one concise follow-up based on the previous question.'} Generate an exactly ${difficulty} difficulty question. ${difficulty === 'easy' ? 'Keep it approachable and focused on fundamentals.' : difficulty === 'hard' ? 'Require advanced reasoning, trade-offs, or edge cases.' : 'Require practical, applied knowledge.'} After one follow-up, switch to a different selected interviewer category. Do not repeat an earlier question. Use a customer or business-impact angle when the technical answer does not explain impact.
 This is follow-up ${followUpNumber} for the current interviewer. If this is 0, begin with the new interviewer's perspective instead of continuing the previous line of questioning.
 
 Return only valid JSON:
@@ -204,7 +210,7 @@ Return only valid JSON:
   return {
     questionText: result.questionText,
     category: selectedTypes.includes(result.category) ? result.category : nextCategory,
-    difficulty: ['easy', 'medium', 'hard'].includes(result.difficulty) ? result.difficulty : 'medium',
+    difficulty,
     expectedKeywords: Array.isArray(result.expectedKeywords) ? result.expectedKeywords : [],
   };
 };
@@ -212,7 +218,12 @@ Return only valid JSON:
 /**
  * Evaluate a candidate's answer using Groq
  */
-const evaluateAnswer = async ({ questionText, answerText, expectedKeywords, jobTitle }) => {
+const evaluateAnswer = async ({ questionText, answerText, expectedKeywords, jobTitle, difficulty = 'medium' }) => {
+  const difficultyGuidance = {
+    easy: 'This is an easy question. Evaluate lightly: reward a clear, fundamentally correct answer even when it lacks detail. Keep feedback encouraging and focus on one simple next improvement.',
+    medium: 'This is a medium question. Apply balanced standards for correctness, clarity, and practical depth. Explain the most important improvement clearly.',
+    hard: 'This is a hard question. Evaluate rigorously: expect depth, precise reasoning, relevant trade-offs, and handling of edge cases. Give direct, constructive feedback.',
+  }[difficulty] || 'Apply balanced standards for correctness, clarity, and practical depth.';
   const defaultPrompt = `Act as an interviewer evaluating a candidate's response.
 
 Job Title: \${jobTitle}
@@ -234,12 +245,14 @@ Return valid JSON exactly in this format:
 }`;
 
   const rawTemplate = await getActivePrompt('ats_scorer', defaultPrompt);
-  const prompt      = formatPrompt(rawTemplate, {
+  const prompt = `Difficulty calibration: ${difficultyGuidance}
+
+${formatPrompt(rawTemplate, {
     jobTitle,
     questionText,
     expectedKeywordsText: expectedKeywords.join(', '),
     answerText: answerText || '(No answer provided)',
-  });
+  })}`;
 
   const response = await groq.chat.completions.create({
     model: DEFAULT_MODEL,
@@ -688,9 +701,6 @@ module.exports = {
   generateTopicQuestions,
   generateQuestionsDirect,
 };
-
-
-
 
 
 

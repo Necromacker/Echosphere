@@ -146,6 +146,7 @@ exports.generateNextQuestion = async (req, res, next) => {
   const nextQuestion = await generateNextInterviewQuestion({
     jobTitle: interview.jobTitle,
     experienceLevel: interview.experienceLevel,
+    difficulty: interview.difficulty,
     currentQuestion,
     candidateAnswer: answer,
     adaptiveContext,
@@ -232,6 +233,7 @@ exports.completeSession = async (req, res, next) => {
       answerText: answer.answerText,
       expectedKeywords: qDoc?.expectedKeywords || [],
       jobTitle: interview?.jobTitle || 'Software Engineer',
+      difficulty: qDoc?.difficulty || interview?.difficulty || 'medium',
     });
     answer.aiScore = typeof result.score === 'number' ? result.score : 5;
     answer.aiFeedback = result.feedback || 'Answer evaluated.';

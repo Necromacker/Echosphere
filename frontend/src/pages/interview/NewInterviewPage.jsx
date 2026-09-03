@@ -20,6 +20,12 @@ const EXPERIENCE_LEVELS = [
   { value: 'executive', label: 'Executive',    sub: 'C-Suite'   },
 ];
 
+const DIFFICULTY_LEVELS = [
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
+];
+
 const QUESTION_TYPES = [
   { value: 'technical',   label: 'Technical',     color: 'brand' },
   { value: 'behavioral',  label: 'Behavioral',    color: 'violet' },
@@ -35,6 +41,7 @@ export default function NewInterviewPage() {
   const [selectedResume, setSelectedResume] = useState(null);
   const [selectedTypes, setSelectedTypes] = useState(['technical', 'behavioral']);
   const [experienceLevel, setExperienceLevel] = useState('mid');
+  const [difficulty, setDifficulty] = useState('medium');
   const [isCreating, setIsCreating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -66,6 +73,7 @@ export default function NewInterviewPage() {
       const { data: createData } = await interviewAPI.create({
         ...formData,
         experienceLevel,
+        difficulty,
         questionTypes: selectedTypes,
         resumeId: selectedResume,
       });
@@ -207,7 +215,22 @@ export default function NewInterviewPage() {
                 <label className="form-label">Number of Questions: <span className="text-[#173500] font-bold">{numberOfQuestions}</span></label>
                 <input type="range" min="3" max="20" step="1" className="w-full accent-[#173500] mt-2"
                   {...register('numberOfQuestions', { valueAsNumber: true })} />
-                <div className="flex justify-between text-xs text-slate-500 mt-1"><span>3</span><span>20</span></div>
+              </div>
+
+              <div>
+                <label className="form-label mb-0">
+                  Interview Difficulty: <span className="font-bold text-[#173500]">{DIFFICULTY_LEVELS.find((level) => level.value === difficulty)?.label}</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="1"
+                  value={DIFFICULTY_LEVELS.findIndex((level) => level.value === difficulty)}
+                  onChange={(event) => setDifficulty(DIFFICULTY_LEVELS[Number(event.target.value)].value)}
+                  className="mt-3 w-full accent-[#173500]"
+                  aria-label="Interview difficulty"
+                />
               </div>
             </motion.div>
           )}
@@ -277,6 +300,7 @@ export default function NewInterviewPage() {
                 { label: 'Job Title', value: jobTitle },
                 { label: 'Company', value: company || 'Not specified' },
                 { label: 'Experience Level', value: EXPERIENCE_LEVELS.find((l) => l.value === experienceLevel)?.label },
+                { label: 'Difficulty', value: DIFFICULTY_LEVELS.find((level) => level.value === difficulty)?.label },
                 { label: 'Question Types', value: selectedTypes.join(', ') },
                 { label: 'Number of Questions', value: numberOfQuestions },
                 { label: 'Resume', value: resumes.find((r) => r._id === selectedResume)?.originalName || 'None selected' },

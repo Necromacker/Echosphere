@@ -19,6 +19,10 @@ const createValidation = [
     .optional()
     .isIn(['entry', 'mid', 'senior', 'lead', 'executive'])
     .withMessage('Invalid experience level'),
+  body('difficulty')
+    .optional()
+    .isIn(['easy', 'medium', 'hard'])
+    .withMessage('Invalid interview difficulty'),
   body('numberOfQuestions')
     .optional()
     .isInt({ min: 3, max: 20 })
