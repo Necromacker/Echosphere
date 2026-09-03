@@ -5,6 +5,7 @@ const {
   AGORA_APP_ID,
   generateUserRtcToken,
   startAgent,
+  updateAgentQuestion,
   stopAgent
 } = require('../services/agoraAgent.service');
 
@@ -90,6 +91,46 @@ exports.stopInterviewAgent = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Agent stop request processed.'
+    });
+  }
+};
+
+/**
+ * POST /api/agora/:interviewId/next-question
+ * Updates the active Agora AI Agent with only the next question and triggers speech
+ */
+exports.nextQuestionForAgent = async (req, res, next) => {
+  const { interviewId } = req.params;
+  const { questionIndex = 0 } = req.body;
+
+  const interview = await Interview.findOne({ _id: interviewId, userId: req.user._id });
+  if (!interview) {
+    return next(new AppError('Interview not found.', 404));
+  }
+
+  const channelName = `interview_${interviewId}`.replace(/[^a-zA-Z0-9_]/g, '_');
+  const question = interview.questions?.[questionIndex];
+  if (!question) {
+    return next(new AppError('Question index out of bounds.', 400));
+  }
+
+  try {
+    await updateAgentQuestion({
+      channelName,
+      jobTitle: interview.jobTitle,
+      question,
+      questionIndex,
+      totalQuestions: interview.questions.length
+    });
+    res.status(200).json({
+      success: true,
+      message: `Agora agent updated with Question ${questionIndex + 1}.`
+    });
+  } catch (err) {
+    logger.warn(`[Agora] Failed to update agent question dynamically: ${err.message}`);
+    res.status(200).json({
+      success: false,
+      message: 'Agent update attempted.'
     });
   }
 };

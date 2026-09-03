@@ -60,38 +60,48 @@ const startAgent = async ({ channelName, jobTitle, questions = [] }) => {
   const authHeader = getAgoraAuthHeader();
 
   const totalQuestions = questions && questions.length > 0 ? questions.length : 1;
-  const questionsList = questions && questions.length > 0
-    ? questions.map((q, i) => `Question ${i + 1} of ${totalQuestions}: [${q.category || 'tech'}] ${q.questionText || q}`).join('\n\n')
-    : 'Question 1 of 1: Tell me about your background and recent engineering challenges you solved.';
+  const currentQ = questions && questions.length > 0 ? questions[0] : null;
+  const q1Text = currentQ ? (currentQ.questionText || currentQ) : 'Tell me about your background and recent engineering challenges you solved.';
+  const q1Keywords = currentQ?.expectedKeywords && currentQ.expectedKeywords.length > 0
+    ? currentQ.expectedKeywords.join(', ')
+    : 'problem solving, technical depth, core engineering';
 
   const systemPrompt = `# 1. ROLE & MISSION
 You are a Senior Technical Interviewer conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
-Your ONLY task is to verbally ask the candidate the EXACT ${totalQuestions} questions listed below, one by one, listen to their answer, and then conclude the interview.
+You are currently evaluating the candidate ONLY on Question 1 of ${totalQuestions}.
+DO NOT ask or talk about any other question. Focus exclusively on Question 1.
 
-# 2. THE STRICT ${totalQuestions} QUESTIONS TO ASK
-Total Questions: ${totalQuestions}
+# 2. CURRENT QUESTION DETAILS
+- Question Number: Question 1 of ${totalQuestions}
+- Question Text: "${q1Text}"
+- Expected Keywords/Concepts: ${q1Keywords}
 
-${questionsList}
+# 3. INTERVIEW FLOW RULES (FOLLOW STRICTLY)
+1. Step 1 (Greeting & Question 1):
+   - Greet the candidate briefly and ask Question 1.
 
-# 3. STRICT INTERVIEW FLOW RULES (STRICT LIMIT: EXACTLY ${totalQuestions} QUESTIONS)
-1. Step 1 (Greeting & First Question):
-   Start with a brief 1-sentence greeting, then immediately ask Question 1.
-2. Step 2 (Sequential Question Flow):
-   - Listen attentively to the candidate's answer.
-   - When the candidate finishes their answer, acknowledge with a single brief natural phrase (e.g., "Got it.", "Thank you.", "Understood.") and immediately ask the next question in numerical order.
-   - You must proceed strictly: Question 1 -> Question 2 -> ... -> Question ${totalQuestions}.
-3. Step 3 (CRITICAL CONSTRAINTS - DO NOT DEVIATE):
-   - STRICT LIMIT: You must ask EXACTLY ${totalQuestions} questions. NEVER exceed ${totalQuestions} questions under any circumstance.
-   - NO FOLLOW-UPS: Do NOT ask any follow-up questions, probing questions, or impromptu questions. Move directly to the next question from the list.
-   - NO EXTRA QUESTIONS: Do NOT invent, rephrase into multiple questions, or add any unlisted questions.
-4. Step 4 (Conclude Interview):
-   - Immediately after the candidate finishes answering Question ${totalQuestions} (the final question), DO NOT ask anything else.
-   - Say: "Thank you for completing all ${totalQuestions} questions. That concludes our interview today. Your responses will now be analyzed and scored."
-   - Conclude your speaking and end the session.
+2. Step 2 (Help User Answer):
+   - If the candidate asks for clarification, says they don't understand, or asks you to explain:
+     Briefly describe or clarify what the question is asking in 1 to 2 simple sentences to help them answer. Do NOT give away the complete answer, but guide them clearly.
+
+3. Step 3 (Listen & Check Expected Keywords):
+   - Listen attentively while the candidate speaks their answer.
+   - Compare what they said against the Expected Keywords (${q1Keywords}).
+   - IF KEYWORDS ARE MISSING:
+     Ask EXACTLY 1 concise follow-up question prompting them on the missing concept.
+     Listen to their response to this single follow-up.
+   - IF KEYWORDS ARE ALREADY COVERED (or after the single follow-up has been answered):
+     Do NOT ask any more follow-up questions for Question 1.
+
+4. Step 4 (Save Answer & Prompt for Next Question):
+   - Clearly confirm their answer is recorded:
+     "Got it, your answer for Question 1 is saved. Please click 'Next Question' on your screen whenever you are ready to proceed."
+   - DO NOT ASK ANY OTHER QUESTIONS: You do not have Question 2 yet. Wait until the user clicks 'Next Question' on their screen.
 
 # 4. SPOKEN OUTPUT STYLE
 - Conversational Length: 1 to 2 clear spoken sentences per turn.
-- Natural speech: No bullet points, no markdown, no numbers, and no code blocks.`;
+- Professional, warm, and encouraging.
+- Natural speech: No bullet points, no markdown, and no code blocks.`;
 
   // Generate an RTC token for the AI agent's UID so it can join the secured channel
   const agentUid = 1000;
@@ -112,7 +122,7 @@ ${questionsList}
             content: systemPrompt
           }
         ],
-        greeting_message: `Hello! Welcome to your technical interview for ${jobTitle || 'this role'}. I will ask you ${totalQuestions} questions today. Let's begin with question 1: ${questions && questions.length > 0 ? (questions[0].questionText || questions[0]) : 'Tell me about yourself and your background.'}`,
+        greeting_message: `Hello! Welcome to your technical interview for ${jobTitle || 'this role'}. I will ask you ${totalQuestions} questions today. Let's begin with question 1: ${q1Text}`,
         failure_message: "I didn't quite catch that. Could you please repeat that?"
       }
     }
@@ -120,7 +130,7 @@ ${questionsList}
 
   const url = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${AGORA_APP_ID}/join`;
 
-  logger.info(`[Agora] Starting Conversational AI Agent for channel: ${channelName}`);
+  logger.info(`[Agora] Starting Conversational AI Agent for channel: ${channelName} with Question 1 only`);
   const response = await axios.post(url, payload, {
     headers: {
       Authorization: authHeader,
@@ -133,6 +143,101 @@ ${questionsList}
   }
 
   return response.data;
+};
+
+/**
+ * Update active Agora agent with ONLY the next question when user clicks Next Question
+ */
+const updateAgentQuestion = async ({ channelName, jobTitle, question, questionIndex, totalQuestions }) => {
+  const agentId = activeAgents.get(channelName);
+  if (!agentId) {
+    logger.warn(`[Agora] No active agent found for channel: ${channelName}`);
+    return;
+  }
+  const authHeader = getAgoraAuthHeader();
+  const text = question.questionText || question;
+  const keywords = question.expectedKeywords && question.expectedKeywords.length > 0
+    ? question.expectedKeywords.join(', ')
+    : 'core technical principles';
+
+  const systemPrompt = `# 1. ROLE & MISSION
+You are a Senior Technical Interviewer conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
+The candidate just moved to Question ${questionIndex + 1} of ${totalQuestions}.
+You are currently evaluating the candidate ONLY on Question ${questionIndex + 1} of ${totalQuestions}.
+DO NOT ask or talk about any other question. Focus exclusively on Question ${questionIndex + 1}.
+
+# 2. CURRENT QUESTION DETAILS
+- Question Number: Question ${questionIndex + 1} of ${totalQuestions}
+- Question Text: "${text}"
+- Expected Keywords/Concepts: ${keywords}
+
+# 3. INTERVIEW FLOW RULES (FOLLOW STRICTLY)
+1. Step 1 (Ask Question ${questionIndex + 1}):
+   - Present Question ${questionIndex + 1} clearly to the candidate.
+
+2. Step 2 (Help User Answer):
+   - If the candidate asks for clarification, says they don't understand, or asks you to explain:
+     Briefly describe or clarify what the question is asking in 1 to 2 simple sentences to help them answer.
+
+3. Step 3 (Listen & Check Expected Keywords):
+   - Listen attentively while the candidate speaks their answer.
+   - Compare what they said against the Expected Keywords (${keywords}).
+   - IF KEYWORDS ARE MISSING:
+     Ask EXACTLY 1 concise follow-up question prompting them on the missing concept.
+     Listen to their response to this single follow-up.
+   - IF KEYWORDS ARE ALREADY COVERED (or after the single follow-up has been answered):
+     Do NOT ask any more follow-up questions for Question ${questionIndex + 1}.
+
+4. Step 4 (Save Answer & Prompt for Next Action):
+   - Clearly confirm their answer is recorded:
+     ${questionIndex + 1 < totalQuestions 
+       ? `"Got it, your answer for Question ${questionIndex + 1} is saved. Please click 'Next Question' on your screen whenever you are ready to proceed."`
+       : `"Thank you, all answers have been recorded! Please click 'Finish & Submit for Groq Review' on your screen to view your detailed evaluation."`}
+   - DO NOT ASK ANY OTHER QUESTIONS until the user clicks to proceed.
+
+# 4. SPOKEN OUTPUT STYLE
+- Conversational Length: 1 to 2 clear spoken sentences per turn.
+- Professional, warm, and encouraging.
+- Natural speech: No bullet points, no markdown, and no code blocks.`;
+
+  // 1. Update the agent configuration with the new question system prompt
+  const updateUrl = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${AGORA_APP_ID}/agents/${agentId}/update`;
+  logger.info(`[Agora] Updating agent ${agentId} with Question ${questionIndex + 1}`);
+
+  await axios.post(updateUrl, {
+    properties: {
+      llm: {
+        system_messages: [
+          {
+            role: 'system',
+            content: systemPrompt
+          }
+        ]
+      }
+    }
+  }, {
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  // 2. Broadcast the question so Agora speaks Question X aloud immediately
+  try {
+    const speakUrl = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${AGORA_APP_ID}/agents/${agentId}/speak`;
+    await axios.post(speakUrl, {
+      text: `Question ${questionIndex + 1}: ${text}`,
+      priority: 'high',
+      interruptable: true
+    }, {
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (speakErr) {
+    logger.warn(`[Agora] Speak endpoint note: ${speakErr.message}`);
+  }
 };
 
 /**
@@ -170,5 +275,6 @@ module.exports = {
   AGORA_APP_ID,
   generateUserRtcToken,
   startAgent,
+  updateAgentQuestion,
   stopAgent
 };

@@ -91,45 +91,73 @@ exports.completeSession = async (req, res, next) => {
   if (!session) return next(new AppError('Active session not found.', 404));
 
   const interview = await Interview.findById(session.interviewId);
+  const { spokenTranscript = '', answers: submittedAnswers } = req.body || {};
 
-  // ── AI Evaluate each answer ────────────────────────────────────
+  // If candidate submitted specific per-question answers, update session.answers
+  if (Array.isArray(submittedAnswers) && submittedAnswers.length > 0) {
+    submittedAnswers.forEach((sub) => {
+      const existing = session.answers.find((a) => a.questionId?.toString() === sub.questionId?.toString());
+      const answerContent = sub.answerText ? sub.answerText.trim() : '';
+      if (existing) {
+        existing.answerText = answerContent;
+        existing.timeTaken = sub.timeTaken || 0;
+        existing.skipped = sub.skipped !== undefined ? sub.skipped : !answerContent;
+      } else if (sub.questionId) {
+        session.answers.push({
+          questionId: sub.questionId,
+          questionText: sub.questionText || '',
+          answerText: answerContent,
+          timeTaken: sub.timeTaken || 0,
+          skipped: sub.skipped !== undefined ? sub.skipped : !answerContent,
+        });
+      }
+    });
+  }
+
+  // Ensure all interview questions exist in session.answers
+  if (interview && interview.questions) {
+    interview.questions.forEach((q) => {
+      let existing = session.answers.find((a) => a.questionId.toString() === q._id.toString());
+      if (!existing) {
+        session.answers.push({
+          questionId: q._id,
+          questionText: q.questionText,
+          answerText: '',
+          timeTaken: 0,
+          skipped: true,
+        });
+      }
+    });
+  }
+
+  // ── Evaluate each answer using Groq AI ───────────────────────────
   const evaluationPromises = session.answers.map(async (answer) => {
-    if (answer.skipped || !answer.answerText) {
+    if (answer.skipped || !answer.answerText || !answer.answerText.trim()) {
       answer.aiScore = 0;
-      answer.aiFeedback = 'Question was skipped.';
+      answer.aiFeedback = 'Question was skipped or left unanswered.';
       return;
     }
-    try {
-      const result = await evaluateAnswer({
-        questionText: answer.questionText,
-        answerText: answer.answerText,
-        expectedKeywords: interview.questions.id(answer.questionId)?.expectedKeywords || [],
-        jobTitle: interview.jobTitle,
-      });
-      answer.aiScore = result.score ?? 0;
-      answer.aiFeedback = result.feedback ?? '';
-    } catch {
-      answer.aiScore = 0;
-      answer.aiFeedback = 'Evaluation unavailable.';
-    }
+    const qDoc = interview?.questions?.id(answer.questionId);
+    const result = await evaluateAnswer({
+      questionText: answer.questionText,
+      answerText: answer.answerText,
+      expectedKeywords: qDoc?.expectedKeywords || [],
+      jobTitle: interview?.jobTitle || 'Software Engineer',
+    });
+    answer.aiScore = typeof result.score === 'number' ? result.score : 5;
+    answer.aiFeedback = result.feedback || 'Answer evaluated.';
   });
 
   await Promise.all(evaluationPromises);
 
-  // ── Generate overall feedback ──────────────────────────────────
-  let overallData = {};
-  try {
-    overallData = await generateOverallFeedback({
-      jobTitle: interview.jobTitle,
-      answers: session.answers,
-    });
-  } catch {
-    overallData = {};
-  }
+  // ── Generate overall feedback & scoring using Groq AI ─────────────
+  const overallData = await generateOverallFeedback({
+    jobTitle: interview?.jobTitle || 'Software Engineer',
+    answers: session.answers,
+  });
 
   // ── Finalize session ──────────────────────────────────────────
-  const overallScore = overallData.overallScore ?? session.calculateOverallScore();
-  session.overallScore = overallScore;
+  session.overallScore = overallData.overallScore ?? 0;
   session.overallFeedback = overallData.improvementTips?.join(' ') ?? '';
   session.strengths = overallData.strengths ?? [];
   session.areasForImprovement = overallData.weaknesses ?? [];
@@ -141,8 +169,10 @@ exports.completeSession = async (req, res, next) => {
   await session.save();
 
   // Update interview status and user's total sessions
-  interview.status = 'completed';
-  await interview.save();
+  if (interview) {
+    interview.status = 'completed';
+    await interview.save();
+  }
 
   await User.findByIdAndUpdate(req.user._id, { $inc: { totalSessions: 1 } });
 

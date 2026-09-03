@@ -1,54 +1,130 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronRight, ChevronLeft, SkipForward, CheckCircle,
-  Clock, Mic, MicOff, Send, Loader2, AlertCircle, BrainCircuit, Volume2, VolumeX, MessageSquare,
-  Phone, PhoneOff, Radio, Sparkles
+  Clock, Mic, MicOff, Loader2, BrainCircuit,
+  Phone, Radio, ShieldCheck, Award, ArrowRight, CheckCircle2, ChevronRight
 } from 'lucide-react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { interviewAPI, sessionAPI, agoraAPI } from '@/services/api';
 import toast from 'react-hot-toast';
-
-const DIFFICULTY_CLR = { easy: 'badge-success', medium: 'badge-warning', hard: 'badge-danger' };
-const CATEGORY_CLR   = { technical: 'badge-brand', behavioral: 'badge-slate', situational: 'badge-warning', hr: 'badge-success', culture_fit: 'badge-danger' };
 
 export default function InterviewSessionPage() {
   const { id: interviewId } = useParams();
   const navigate = useNavigate();
 
   const [interview, setInterview] = useState(null);
-  const [session, setSession]     = useState(null);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [answerText, setAnswerText] = useState('');
-  const [savedAnswers, setSavedAnswers] = useState({});
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [completing, setCompleting] = useState(false);
-  const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
+
+  // Active question index
+  const [currentIdx, setCurrentIdx] = useState(0);
+
+  // Spoken answers dictionary: { [questionId]: "answer text" }
+  const [savedAnswers, setSavedAnswers] = useState({});
+
+  // Live spoken words for the CURRENT question being answered
+  const [spokenTranscript, setSpokenTranscript] = useState('');
 
   // Agora Conversational AI Agent State
   const clientRef = useRef(null);
   const trackRef = useRef(null);
-  const [localAudioTrack, setLocalAudioTrack] = useState(null);
+  const recognitionRef = useRef(null);
+
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isConnectingVoice, setIsConnectingVoice] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isMicMuted, setIsMicMuted] = useState(false);
 
+  // Elapsed interview timer
+  useEffect(() => {
+    let timer;
+    if (isVoiceActive) {
+      timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isVoiceActive]);
+
+  const formatTime = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+  // Load interview and session
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const { data: intData } = await interviewAPI.getById(interviewId);
+        setInterview(intData.interview);
+        const { data: sessData } = await sessionAPI.start(interviewId);
+        setSession(sessData.session);
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Failed to start session');
+        navigate('/interviews');
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, [interviewId, navigate]);
+
+  // Continuous speech-to-text to capture candidate's spoken words for the ACTIVE question
+  const startSpeechCapture = () => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) return;
+
+    try {
+      const rec = new SpeechRec();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onresult = (e) => {
+        let chunk = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            chunk += ' ' + e.results[i][0].transcript;
+          }
+        }
+        if (chunk.trim()) {
+          setSpokenTranscript((prev) => (prev ? prev + ' ' + chunk.trim() : chunk.trim()));
+        }
+      };
+
+      rec.onerror = (e) => {
+        console.warn('[SpeechRec] Error/Info:', e.error);
+      };
+
+      rec.onend = () => {
+        if (recognitionRef.current && isVoiceActive) {
+          try { rec.start(); } catch {}
+        }
+      };
+
+      rec.start();
+      recognitionRef.current = rec;
+    } catch (err) {
+      console.warn('[SpeechRec] Init failed:', err);
+    }
+  };
+
+  const stopSpeechCapture = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
+  };
+
+  // Start Agora Voice Session
   const startAgoraVoiceSession = async () => {
     setIsConnectingVoice(true);
     try {
-      // 1. Tell backend to start Agora Conversational AI Agent & get credentials
       const { data } = await agoraAPI.start(interviewId);
       const { appId, channelName, token, uid } = data.data;
 
-      // 2. Initialize Agora RTC client
       const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       clientRef.current = client;
 
-      // 3. Set up event listeners for AI agent voice BEFORE joining
       client.on('user-published', async (user, mediaType) => {
         await client.subscribe(user, mediaType);
         if (mediaType === 'audio') {
@@ -72,27 +148,21 @@ export default function InterviewSessionPage() {
         setIsAiSpeaking(false);
       });
 
-      // 4. Join RTC channel FIRST (so we're in the room when the agent arrives)
       await client.join(appId, channelName, token || null, uid);
-      console.log('[Agora] Candidate joined channel:', channelName, 'with uid:', uid);
 
-      // 5. Create and publish microphone track BEFORE agent starts
       const micTrack = await AgoraRTC.createMicrophoneAudioTrack();
       trackRef.current = micTrack;
-      setLocalAudioTrack(micTrack);
       await client.publish([micTrack]);
-      console.log('[Agora] Candidate microphone published. Waiting for AI agent...');
 
       setIsVoiceActive(true);
-      toast.success('Connected! AI interviewer is joining...', { icon: '🎙️' });
+      startSpeechCapture();
+      toast.success('Connected! Agora AI Interviewer is joining...', { icon: '🎙️' });
     } catch (err) {
       console.error('[Agora Connection Error]:', err);
-      // Clean up in case of failure
       if (trackRef.current) {
         trackRef.current.stop();
         trackRef.current.close();
         trackRef.current = null;
-        setLocalAudioTrack(null);
       }
       if (clientRef.current) {
         try { await clientRef.current.leave(); } catch {}
@@ -104,13 +174,14 @@ export default function InterviewSessionPage() {
     }
   };
 
+  // Disconnect Agora
   const stopAgoraVoiceSession = async () => {
+    stopSpeechCapture();
     try {
       if (trackRef.current) {
         trackRef.current.stop();
         trackRef.current.close();
         trackRef.current = null;
-        setLocalAudioTrack(null);
       }
       if (clientRef.current) {
         await clientRef.current.leave();
@@ -123,7 +194,6 @@ export default function InterviewSessionPage() {
       setIsVoiceActive(false);
       setIsAiSpeaking(false);
       setIsMicMuted(false);
-      toast('Agora Voice Agent disconnected.', { icon: '🔌' });
     }
   };
 
@@ -132,13 +202,88 @@ export default function InterviewSessionPage() {
       const nextMuted = !isMicMuted;
       trackRef.current.setEnabled(!nextMuted);
       setIsMicMuted(nextMuted);
-      toast(nextMuted ? 'Microphone muted' : 'Microphone unmuted', { icon: nextMuted ? '🔇' : '🎙️' });
+      toast(nextMuted ? 'Microphone muted' : 'Microphone unmuted', {
+        icon: nextMuted ? '🔇' : '🎙️',
+      });
     }
   };
 
-  // Safe unmount cleanup only
+  // Save current question's spoken answer and provide ONLY next question to Agora
+  const handleSaveAndNext = async (targetIdx = null) => {
+    const currentQ = interview?.questions?.[currentIdx];
+    if (currentQ) {
+      const currentSpoken = spokenTranscript.trim();
+      const existing = savedAnswers[currentQ._id] || '';
+      const combined = (existing ? existing + ' ' : '') + currentSpoken;
+      setSavedAnswers((prev) => ({
+        ...prev,
+        [currentQ._id]: combined.trim(),
+      }));
+    }
+
+    // Reset spoken transcript to fresh for the next question
+    setSpokenTranscript('');
+
+    const nextIndex = targetIdx !== null ? targetIdx : currentIdx + 1;
+    if (nextIndex < (interview?.questions?.length || 0)) {
+      setCurrentIdx(nextIndex);
+      // Dynamically provide ONLY this next question to Agora
+      try {
+        await agoraAPI.nextQuestion(interviewId, { questionIndex: nextIndex });
+      } catch (err) {
+        console.warn('[Agora] Next question update error:', err);
+      }
+      toast.success(`Question ${currentIdx + 1} saved! Agora presenting Question ${nextIndex + 1}...`, {
+        icon: '✅',
+      });
+    }
+  };
+
+  // Conclude session: compile distinct per-question answers and send to Groq for evaluation
+  const handleFinishAndEvaluate = async () => {
+    setCompleting(true);
+    try {
+      await stopAgoraVoiceSession();
+
+      // Ensure active question's latest spoken speech is saved
+      const currentQ = interview?.questions?.[currentIdx];
+      const currentSpoken = spokenTranscript.trim();
+      const finalSaved = { ...savedAnswers };
+      if (currentQ && currentSpoken) {
+        const existing = finalSaved[currentQ._id] || '';
+        finalSaved[currentQ._id] = ((existing ? existing + ' ' : '') + currentSpoken).trim();
+      }
+
+      // Format distinct per-question answers for Groq
+      const answersPayload = (interview?.questions || []).map((q) => {
+        const text = (finalSaved[q._id] || '').trim();
+        return {
+          questionId: q._id,
+          questionText: q.questionText,
+          answerText: text,
+          timeTaken: 0,
+          skipped: !text,
+        };
+      });
+
+      // Send per-question answers to backend for Groq review
+      await sessionAPI.complete(session._id, {
+        answers: answersPayload,
+      });
+
+      toast.success('Interview concluded! Groq analysis is ready.', { icon: '🎉' });
+      navigate(`/sessions/${session._id}/results`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to complete session evaluation');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  // Safe unmount
   useEffect(() => {
     return () => {
+      stopSpeechCapture();
       if (trackRef.current) {
         trackRef.current.stop();
         trackRef.current.close();
@@ -151,151 +296,12 @@ export default function InterviewSessionPage() {
     };
   }, []);
 
-  const [isListening, setIsListening] = useState(false);
-  const [recognition, setRecognition] = useState(null);
-
-  // Initialize Speech Recognition
-  useEffect(() => {
-    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRec) {
-      const rec = new SpeechRec();
-      rec.continuous = true;
-      rec.interimResults = true;
-      rec.onresult = (e) => {
-        let finalText = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            finalText += e.results[i][0].transcript;
-          }
-        }
-        // Only append text from results that are marked as final
-        // Interim results are intentionally ignored to prevent word repetition
-        if (finalText) {
-          setAnswerText((prev) => {
-            const trimmedPrev = prev.trimEnd();
-            const separator = trimmedPrev.length > 0 ? ' ' : '';
-            return trimmedPrev + separator + finalText.trim();
-          });
-        }
-      };
-      rec.onerror = (e) => {
-        console.error('Speech recognition error', e.error);
-        setIsListening(false);
-        toast.error('Microphone access denied or failed.');
-      };
-      setRecognition(rec);
-    }
-  }, []);
-
-  const toggleListening = () => {
-    if (!recognition) return toast.error('Voice typing not supported in this browser.');
-    if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-    } else {
-      recognition.start();
-      setIsListening(true);
-      toast.success('Listening... Start speaking now.', { icon: '🎙️' });
-    }
-  };
-
-  // Stop listening when navigating away from question
-  useEffect(() => {
-    if (isListening && recognition) {
-      recognition.stop();
-      setIsListening(false);
-    }
-  }, [currentIdx, recognition]);
-
-  // Elapsed timer
-  useEffect(() => {
-    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
-    return () => clearInterval(timer);
-  }, [startTime]);
-
-  const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const { data: intData } = await interviewAPI.getById(interviewId);
-        setInterview(intData.interview);
-        const { data: sessData } = await sessionAPI.start(interviewId);
-        setSession(sessData.session);
-      } catch (err) {
-        toast.error(err.response?.data?.message || 'Failed to start session');
-        navigate('/interviews');
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, [interviewId, navigate]);
-
-  const currentQuestion = interview?.questions?.[currentIdx];
-  const totalQuestions = interview?.questions?.length || 0;
-  const progress = totalQuestions ? ((currentIdx + 1) / totalQuestions) * 100 : 0;
-
-  const saveAnswer = useCallback(async (skipped = false) => {
-    if (!session || !currentQuestion) return;
-    if (!answerText.trim() && !skipped) return;
-
-    setSubmitting(true);
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-
-    try {
-      await sessionAPI.submitAnswer(session._id, {
-        questionId: currentQuestion._id,
-        answerText: skipped ? '' : answerText.trim(),
-        timeTaken,
-        skipped,
-      });
-      setSavedAnswers((prev) => ({ ...prev, [currentQuestion._id]: { answerText, skipped } }));
-      setStartTime(Date.now());
-    } catch {
-      toast.error('Failed to save answer');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [session, currentQuestion, answerText, startTime]);
-
-  const handleNext = async (skip = false) => {
-    await saveAnswer(skip);
-    setAnswerText(savedAnswers[interview?.questions?.[currentIdx + 1]?._id]?.answerText || '');
-    setCurrentIdx((i) => i + 1);
-    setElapsed(0);
-    setStartTime(Date.now());
-  };
-
-  const handlePrev = () => {
-    const prev = interview?.questions?.[currentIdx - 1];
-    setAnswerText(savedAnswers[prev?._id]?.answerText || '');
-    setCurrentIdx((i) => i - 1);
-  };
-
-  const handleComplete = async () => {
-    if (isVoiceActive) {
-      await stopAgoraVoiceSession();
-    }
-    await saveAnswer(false);
-    setCompleting(true);
-    try {
-      await sessionAPI.complete(session._id);
-      toast.success('Session completed! Loading your results...');
-      navigate(`/sessions/${session._id}/results`);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to complete session');
-    } finally {
-      setCompleting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <BrainCircuit className="w-12 h-12 text-brand-400 mx-auto mb-4 animate-pulse" />
-          <p className="text-slate-400">Loading your interview session...</p>
+          <p className="text-slate-400">Setting up voice interview room...</p>
         </div>
       </div>
     );
@@ -303,244 +309,281 @@ export default function InterviewSessionPage() {
 
   if (!interview || !session) return null;
 
+  const totalQuestions = interview.questions?.length || 0;
+  const currentQuestion = interview.questions?.[currentIdx];
+  const activeSavedText = savedAnswers[currentQuestion?._id] || '';
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in pb-12">
       {/* Header */}
-      <div className="card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-surface-border">
         <div>
-          <h2 className="font-display font-bold text-white">{interview.jobTitle}</h2>
-          <p className="text-slate-400 text-sm capitalize">{interview.experienceLevel} level • {totalQuestions} questions</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-sm bg-surface px-3 py-1.5 rounded-lg border border-surface-border">
-            <Clock className="w-4 h-4 text-brand-400" />
-            <span className="text-white font-mono">{formatTime(elapsed)}</span>
+          <div className="flex items-center gap-2">
+            <h2 className="font-display font-bold text-white text-xl">{interview.jobTitle}</h2>
+            <span className="badge badge-brand text-xs capitalize">{interview.experienceLevel}</span>
           </div>
-          <span className="text-sm text-slate-400">{currentIdx + 1} / {totalQuestions}</span>
+          <p className="text-slate-400 text-xs mt-1">
+            Agora Voice Interview • Evaluated Question-by-Question by Groq AI
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 text-sm bg-surface px-3.5 py-1.5 rounded-xl border border-surface-border">
+            <Clock className="w-4 h-4 text-brand-400" />
+            <span className="text-white font-mono font-medium">{formatTime(elapsed)}</span>
+          </div>
         </div>
       </div>
 
-      {/* Agora Conversational AI Agent Voice Panel */}
-      <div className={`card p-5 border transition-all duration-300 ${
-        isVoiceActive 
-          ? 'border-emerald-500/40 bg-emerald-950/20 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-500/20' 
-          : 'border-brand-500/30 bg-brand-950/20'
-      }`}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-xl transition-colors ${
-              isVoiceActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/20 text-brand-400'
-            }`}>
-              <Radio className={`w-6 h-6 ${isVoiceActive ? 'animate-pulse text-emerald-400' : 'text-brand-400'}`} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-white font-semibold text-base flex items-center gap-2">
-                  Agora Conversational AI Voice Agent
-                  {isVoiceActive && (
-                    <span className="flex h-2 w-2 relative">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                  )}
-                </h3>
-                {isVoiceActive && (
-                  <span className="badge badge-success text-[11px] py-0.5">
-                    {isAiSpeaking ? 'AI Speaking 🔊' : 'Listening to You 🎙️'}
-                  </span>
+      {/* Question Stepper Tabs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {interview.questions?.map((q, idx) => {
+          const isSaved = !!savedAnswers[q._id];
+          const isActive = idx === currentIdx;
+          return (
+            <button
+              key={q._id || idx}
+              onClick={() => handleSaveAndNext(idx)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex-shrink-0 ${
+                isActive
+                  ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
+                  : isSaved
+                  ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-surface text-slate-400 border border-surface-border hover:text-white'
+              }`}
+            >
+              {isSaved ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <span>Q{idx + 1}</span>
+              )}
+              <span>Question {idx + 1}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Main Voice Room Stage */}
+      <div
+        className={`card p-6 text-center transition-all duration-500 border ${
+          isVoiceActive
+            ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 via-surface to-surface shadow-2xl shadow-emerald-950/30 ring-1 ring-emerald-500/20'
+            : 'border-surface-border bg-gradient-to-b from-brand-950/20 via-surface to-surface'
+        }`}
+      >
+        {/* Animated Voice Visualizer Orb */}
+        <div className="relative mx-auto my-4 w-28 h-28 flex items-center justify-center">
+          {isVoiceActive ? (
+            <>
+              <motion.div
+                animate={{
+                  scale: isAiSpeaking ? [1, 1.25, 1] : [1, 1.08, 1],
+                  opacity: isAiSpeaking ? [0.6, 0.2, 0.6] : [0.4, 0.15, 0.4],
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                className="absolute inset-0 rounded-full bg-emerald-500/20 blur-xl"
+              />
+              <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-600 via-teal-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-emerald-500/40">
+                {isAiSpeaking ? (
+                  <Radio className="w-10 h-10 text-white animate-pulse" />
+                ) : (
+                  <Mic className="w-10 h-10 text-white" />
                 )}
               </div>
-              <p className="text-slate-400 text-xs mt-0.5">
-                {isVoiceActive
-                  ? 'Real-time conversational voice interview active (Deepgram Nova-3 + GPT-4o-mini + Minimax).'
-                  : 'Start real-time two-way voice dialogue with the AI interviewer.'}
-              </p>
+            </>
+          ) : (
+            <div className="w-24 h-24 rounded-full bg-surface-border/60 border border-surface-border flex items-center justify-center text-slate-400">
+              <Phone className="w-8 h-8" />
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            {isVoiceActive ? (
-              <>
-                <button
-                  type="button"
-                  onClick={toggleMuteMic}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    isMicMuted 
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
-                      : 'bg-surface hover:bg-surface-hover text-slate-300 border border-surface-border'
-                  }`}
-                >
-                  {isMicMuted ? <MicOff className="w-4 h-4 text-amber-400" /> : <Mic className="w-4 h-4 text-emerald-400" />}
-                  {isMicMuted ? 'Unmute' : 'Mute'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={stopAgoraVoiceSession}
-                  className="btn-secondary py-2 px-3 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30 gap-1.5"
-                >
-                  <PhoneOff className="w-4 h-4" />
-                  Disconnect Voice
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={startAgoraVoiceSession}
-                disabled={isConnectingVoice}
-                className="btn-primary py-2.5 px-4 text-sm gap-2 w-full sm:w-auto bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 shadow-md shadow-brand-500/20"
-              >
-                {isConnectingVoice ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Connecting to Agora...
-                  </>
-                ) : (
-                  <>
-                    <Phone className="w-4 h-4" />
-                    Start Agora Voice Interview
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Active voice waveform animation */}
+        {/* Dynamic Status Badge */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          {isVoiceActive ? (
+            <span
+              className={`badge py-1 px-3 text-xs flex items-center gap-2 ${
+                isAiSpeaking
+                  ? 'badge-success shadow-sm shadow-emerald-500/20'
+                  : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-current animate-ping" />
+              {isAiSpeaking ? 'AI Interviewer Speaking...' : `Answering Question ${currentIdx + 1}`}
+            </span>
+          ) : (
+            <span className="badge badge-slate text-xs">Voice Session Ready</span>
+          )}
+        </div>
+
+        {/* Current Active Question Display */}
+        {currentQuestion && (
+          <div className="mb-5 p-4 rounded-xl bg-surface/90 border border-brand-500/30 text-left space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-brand-400">
+                Target Question {currentIdx + 1} of {totalQuestions}
+              </span>
+              <span className="badge badge-slate text-[11px] capitalize">
+                {currentQuestion.category || 'Technical'}
+              </span>
+            </div>
+            <p className="text-white text-base font-medium leading-relaxed">
+              {currentQuestion.questionText}
+            </p>
+            {currentQuestion.expectedKeywords?.length > 0 && (
+              <p className="text-[11px] text-slate-400 pt-1">
+                Key concepts: {currentQuestion.expectedKeywords.join(' • ')}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Live Spoken Words for this Question */}
         {isVoiceActive && (
-          <div className="mt-4 pt-3 border-t border-emerald-500/20 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 h-5">
-              {[40, 75, 50, 90, 60, 100, 45, 80, 55, 70].map((h, i) => (
-                <span
-                  key={i}
-                  className={`w-1 rounded-full transition-all duration-150 ${
-                    isAiSpeaking ? 'bg-emerald-400' : 'bg-brand-400'
-                  }`}
-                  style={{
-                    height: isAiSpeaking ? `${h}%` : '20%',
-                    animation: isAiSpeaking ? `pulse 0.8s ease-in-out infinite alternate ${i * 0.08}s` : 'none'
-                  }}
-                />
-              ))}
-              <span className="text-xs text-slate-300 ml-2 font-mono">
-                {isAiSpeaking ? 'AI is speaking...' : isMicMuted ? 'Mic Muted' : 'Mic Live • Speak naturally'}
+          <div className="mb-6 text-left">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Your Spoken Words for Question {currentIdx + 1}:
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {[activeSavedText, spokenTranscript].filter(Boolean).join(' ').split(/\s+/).filter(Boolean).length} words
               </span>
             </div>
 
-            <span className="text-[11px] text-emerald-400 font-mono">
-              Channel: interview_{interviewId.slice(-6)}
-            </span>
+            <div className="p-4 rounded-xl bg-surface/80 border border-surface-border text-slate-200 text-sm min-h-[75px] max-h-36 overflow-y-auto leading-relaxed">
+              {activeSavedText && (
+                <span className="text-emerald-300 font-medium">
+                  {activeSavedText}{' '}
+                </span>
+              )}
+              {spokenTranscript ? (
+                <span className="text-white">{spokenTranscript}</span>
+              ) : !activeSavedText ? (
+                <span className="text-slate-500 italic">
+                  Speak into your microphone now to answer Question {currentIdx + 1}. When finished, click "Next Question" to save your answer and move to the next question with a fresh transcript...
+                </span>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Controls and Transitions */}
+        {!isVoiceActive ? (
+          <button
+            onClick={startAgoraVoiceSession}
+            disabled={isConnectingVoice}
+            className="btn-primary text-base py-3 px-8 mx-auto shadow-xl shadow-brand-500/20"
+          >
+            {isConnectingVoice ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" /> Connecting to Agora...
+              </>
+            ) : (
+              <>
+                <Phone className="w-5 h-5" /> Start Voice Interview
+              </>
+            )}
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              onClick={toggleMuteMic}
+              className={`btn-secondary text-xs px-4 py-2 ${
+                isMicMuted ? 'bg-red-500/20 text-red-400 border-red-500/30' : ''
+              }`}
+            >
+              {isMicMuted ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
+              {isMicMuted ? 'Unmute' : 'Mute'}
+            </button>
+
+            {currentIdx < totalQuestions - 1 ? (
+              <button
+                onClick={() => handleSaveAndNext()}
+                className="btn-primary text-sm px-6 py-2.5 shadow-lg shadow-brand-500/25 flex items-center gap-2"
+              >
+                <span>Save Answer & Next Question</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : null}
+
+            <button
+              onClick={handleFinishAndEvaluate}
+              disabled={completing}
+              className="btn-primary bg-emerald-600 hover:bg-emerald-500 text-sm px-6 py-2.5 shadow-lg shadow-emerald-900/30 flex items-center gap-2"
+            >
+              {completing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Groq Evaluating Answers...
+                </>
+              ) : (
+                <>
+                  <Award className="w-4 h-4" /> Finish & Submit for Groq Review
+                </>
+              )}
+            </button>
           </div>
         )}
       </div>
 
-      {/* Progress */}
-      <div className="progress-bar">
-        <motion.div className="progress-fill" style={{ width: `${progress}%` }} />
-      </div>
-
-      {/* Question */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentIdx}
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -15 }}
-          transition={{ duration: 0.25 }}
-          className="card p-7 space-y-5"
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-brand-400 font-bold text-sm">Q{currentIdx + 1}</span>
-            <span className={`badge ${DIFFICULTY_CLR[currentQuestion?.difficulty] || 'badge-slate'}`}>
-              {currentQuestion?.difficulty}
-            </span>
-            <span className={`badge ${CATEGORY_CLR[currentQuestion?.category] || 'badge-slate'}`}>
-              {currentQuestion?.category?.replace('_', ' ')}
-            </span>
-            {savedAnswers[currentQuestion?._id] && (
-              <span className="badge badge-success"><CheckCircle className="w-3 h-3" /> Saved</span>
-            )}
-          </div>
-
-          <div>
-            <p className="text-white text-lg leading-relaxed font-medium">
-              {currentQuestion?.questionText}
-            </p>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="form-label !mb-0 flex items-center gap-2">
-                Your Answer
-              </label>
-              <button 
-                type="button" 
-                onClick={toggleListening}
-                className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-surface hover:bg-surface-hover text-slate-400 border border-surface-border'}`}
+      {/* Target Questions Overview & Saved Answers Review */}
+      <div className="card p-6 border-surface-border">
+        <h3 className="text-white font-semibold text-sm mb-3 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-brand-400" />
+          Questions in this Interview ({totalQuestions})
+        </h3>
+        <div className="space-y-2.5">
+          {interview.questions?.map((q, idx) => {
+            const isSaved = !!savedAnswers[q._id];
+            const isActive = idx === currentIdx;
+            return (
+              <div
+                key={q._id || idx}
+                onClick={() => handleSaveAndNext(idx)}
+                className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                  isActive
+                    ? 'border-brand-500/60 bg-brand-950/20 ring-1 ring-brand-500/30'
+                    : isSaved
+                    ? 'border-emerald-500/30 bg-emerald-950/10'
+                    : 'border-surface-border bg-surface/50 hover:bg-surface'
+                }`}
               >
-                <Mic className="w-3.5 h-3.5" />
-                {isListening ? 'Listening...' : 'Voice Input'}
-              </button>
-            </div>
-            <textarea
-              className={`form-textarea h-44 transition-colors ${isListening ? 'border-brand-500 ring-1 ring-brand-500/50 bg-brand-500/5' : ''}`}
-              placeholder="Type your answer here, or click 'Voice Input' to speak. Be concise yet thorough. For behavioral questions, use the STAR method..."
-              value={answerText}
-              onChange={(e) => setAnswerText(e.target.value)}
-            />
-            <p className="text-slate-500 text-xs mt-1.5">{answerText.length} characters</p>
-          </div>
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <span
+                    className={`w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                      isSaved
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : isActive
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-surface-border text-slate-400'
+                    }`}
+                  >
+                    {isSaved ? '✓' : idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-slate-200 leading-snug">{q.questionText}</p>
+                    {isSaved && (
+                      <p className="text-xs text-emerald-400 mt-1 line-clamp-1 italic">
+                        Answer saved: "{savedAnswers[q._id]}"
+                      </p>
+                    )}
+                  </div>
+                </div>
 
-          {/* Keywords hint */}
-          {currentQuestion?.expectedKeywords?.length > 0 && (
-            <div className="p-3 rounded-lg bg-brand-600/10 border border-brand-500/20">
-              <p className="text-xs text-brand-300">
-                💡 <strong>Topic hints:</strong> {currentQuestion.expectedKeywords.join(' • ')}
-              </p>
-            </div>
-          )}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <button onClick={handlePrev} disabled={currentIdx === 0 || submitting}
-          className="btn-secondary disabled:opacity-30">
-          <ChevronLeft className="w-4 h-4" /> Previous
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => handleNext(true)} disabled={submitting}
-            className="btn-ghost text-slate-400">
-            <SkipForward className="w-4 h-4" /> Skip
-          </button>
-
-          {currentIdx < totalQuestions - 1 ? (
-            <button onClick={() => handleNext(false)} disabled={submitting || !answerText.trim()}
-              className="btn-primary disabled:opacity-50">
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Save & Next</>}
-            </button>
-          ) : (
-            <button onClick={handleComplete} disabled={completing}
-              className="btn-primary bg-emerald-600 hover:bg-emerald-500">
-              {completing
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Evaluating...</>
-                : <><CheckCircle className="w-4 h-4" /> Finish & Get Results</>}
-            </button>
-          )}
+                <div className="flex-shrink-0">
+                  {isActive ? (
+                    <span className="badge badge-brand text-[10px]">Active</span>
+                  ) : isSaved ? (
+                    <span className="badge badge-success text-[10px]">Saved</span>
+                  ) : (
+                    <span className="badge badge-slate text-[10px]">Pending</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-
-      {/* Session completion warning */}
-      {currentIdx === totalQuestions - 1 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="card p-4 border-amber-500/30 bg-amber-600/10 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-          <p className="text-amber-300 text-sm">
-            This is the last question. After saving, clicking <strong>"Finish & Get Results"</strong> will submit your answers and AI will evaluate your performance.
-          </p>
-        </motion.div>
-      )}
     </div>
   );
 }

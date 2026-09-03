@@ -39,7 +39,7 @@ export const interviewAPI = {
 export const sessionAPI = {
   start: (interviewId) => api.post('/sessions/start', { interviewId }),
   submitAnswer: (sessionId, data) => api.post(`/sessions/${sessionId}/answer`, data),
-  complete: (sessionId) => api.post(`/sessions/${sessionId}/complete`),
+  complete: (sessionId, data = {}) => api.post(`/sessions/${sessionId}/complete`, data),
   getAll: (params) => api.get('/sessions', { params }),
   getById: (id) => api.get(`/sessions/${id}`),
 };
@@ -48,5 +48,6 @@ export const sessionAPI = {
 export const agoraAPI = {
   start: (interviewId) => api.post(`/agora/${interviewId}/start`),
   stop: (interviewId) => api.post(`/agora/${interviewId}/stop`),
+  nextQuestion: (interviewId, data) => api.post(`/agora/${interviewId}/next-question`, data),
 };
 
