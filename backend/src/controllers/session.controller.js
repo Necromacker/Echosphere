@@ -2,7 +2,7 @@ const Session = require('../models/Session.model');
 const Interview = require('../models/Interview.model');
 const User = require('../models/User.model');
 const AppError = require('../utils/AppError');
-const { evaluateAnswer, generateOverallFeedback } = require('../services/ai.service');
+const { evaluateAnswer, generateOverallFeedback, generateNextInterviewQuestion } = require('../services/ai.service');
 
 // ─── POST /api/sessions/start ─────────────────────────────────────
 exports.startSession = async (req, res, next) => {
@@ -78,6 +78,95 @@ exports.submitAnswer = async (req, res, next) => {
   await session.save();
 
   res.status(200).json({ success: true, message: 'Answer saved.', session });
+};
+
+// ─── POST /api/sessions/:id/next-question ─────────────────────────
+exports.generateNextQuestion = async (req, res, next) => {
+  const { questionId, answerText = '', timeTaken = 0, skipped = false, forceNewQuestion = false } = req.body;
+  const session = await Session.findOne({
+    _id: req.params.id,
+    userId: req.user._id,
+    status: { $in: ['started', 'in_progress'] },
+  });
+
+  if (!session) return next(new AppError('Active session not found.', 404));
+
+  const interview = await Interview.findById(session.interviewId);
+  const currentQuestion = interview?.questions?.id(questionId);
+  if (!currentQuestion) return next(new AppError('Current question not found.', 404));
+
+  const answer = answerText.trim();
+  const existing = session.answers.find((item) => item.questionId.toString() === questionId);
+  if (existing) {
+    existing.answerText = answer;
+    existing.timeTaken = timeTaken;
+    existing.skipped = skipped || !answer;
+  } else {
+    session.answers.push({
+      questionId,
+      questionText: currentQuestion.questionText,
+      answerText: answer,
+      timeTaken,
+      skipped: skipped || !answer,
+    });
+  }
+
+  const adaptiveContext = session.adaptiveContext || {};
+  adaptiveContext.answeredQuestions = adaptiveContext.answeredQuestions || [];
+  if (!adaptiveContext.answeredQuestions.some((item) => item.questionId?.toString() === questionId)) {
+    adaptiveContext.answeredQuestions.push({
+      question: currentQuestion.questionText,
+      answer,
+      category: currentQuestion.category,
+      expectedKeywords: currentQuestion.expectedKeywords || [],
+    });
+  }
+
+  const noAnswer = !answer || /^(i do not know|i don't know|no idea|not sure|i have no answer|i don't have an answer to that question|skip)$/i.test(answer);
+  if (noAnswer && !forceNewQuestion) {
+    session.adaptiveContext = adaptiveContext;
+    await session.save();
+    return res.status(200).json({
+      success: true,
+      question: null,
+      waitingForNextQuestion: true,
+      agentMessage: 'No problem. Please click Next Question when you are ready for a different question.',
+      session,
+    });
+  }
+
+  const difficultyAnswer = /\b(i (don't|do not) understand|i am confused|i cannot answer|i('m| am) having difficulty|can you repeat|please repeat|help me)\b/i.test(answer);
+
+  if (session.answers.length >= interview.numberOfQuestions) {
+    session.adaptiveContext = adaptiveContext;
+    await session.save();
+    return res.status(200).json({ success: true, question: null, completed: true, session });
+  }
+
+  const nextQuestion = await generateNextInterviewQuestion({
+    jobTitle: interview.jobTitle,
+    experienceLevel: interview.experienceLevel,
+    currentQuestion,
+    candidateAnswer: answer,
+    adaptiveContext,
+    questionTypes: interview.questionTypes,
+    questionNumber: interview.questions.length,
+    forceNewQuestion: forceNewQuestion || difficultyAnswer,
+  });
+
+  interview.questions.push({ ...nextQuestion, order: interview.questions.length + 1 });
+  await interview.save();
+
+  session.adaptiveContext = adaptiveContext;
+  session.status = 'in_progress';
+  await session.save();
+
+  res.status(200).json({
+    success: true,
+    question: interview.questions[interview.questions.length - 1],
+    questionIndex: interview.questions.length - 1,
+    session,
+  });
 };
 
 // ─── POST /api/sessions/:id/complete ─────────────────────────────

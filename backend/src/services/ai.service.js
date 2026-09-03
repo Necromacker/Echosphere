@@ -124,6 +124,87 @@ ${responseShape}
   return trimmed.map((q, i) => ({ ...q, order: i + 1 }));
 };
 
+const generateNextInterviewQuestion = async ({
+  jobTitle,
+  experienceLevel,
+  currentQuestion,
+  candidateAnswer,
+  adaptiveContext,
+  questionTypes,
+  questionNumber,
+  forceNewQuestion = false,
+}) => {
+  const selectedTypes = questionTypes?.length ? questionTypes : ['technical', 'behavioral'];
+  const answeredQuestions = adaptiveContext.answeredQuestions || [];
+  const currentCategory = currentQuestion.category || selectedTypes[0];
+  let consecutiveRoleQuestions = 0;
+  for (let index = answeredQuestions.length - 1; index >= 0; index -= 1) {
+    if (answeredQuestions[index].category !== currentCategory) break;
+    consecutiveRoleQuestions += 1;
+  }
+  const alternateCategories = selectedTypes.filter((type) => type !== currentCategory);
+  const nextCategory = consecutiveRoleQuestions <= 1 && alternateCategories.length === 0
+    ? currentCategory
+    : consecutiveRoleQuestions <= 1
+      ? currentCategory
+      : alternateCategories[(questionNumber - 1) % alternateCategories.length];
+  const followUpNumber = nextCategory === currentCategory ? consecutiveRoleQuestions : 0;
+  const roleByCategory = {
+    technical: 'Technical Interviewer',
+    behavioral: 'Behavioral Interviewer',
+    situational: 'Hiring Manager',
+    hr: 'Hiring Manager',
+    culture_fit: 'Customer / Culture Interviewer',
+  };
+
+  const prompt = `Generate exactly one ${nextCategory} interview question for a ${jobTitle || 'Software Engineer'} candidate.
+
+The interviewer role is: ${roleByCategory[nextCategory] || 'General Interviewer'}
+Experience level: ${experienceLevel || 'mid'}
+Previous question: ${currentQuestion.questionText}
+Candidate answer: ${candidateAnswer || '(No substantive answer provided)'}
+Updated interview context:
+${JSON.stringify(adaptiveContext, null, 2)}
+
+${forceNewQuestion ? 'Generate a completely new independent question. Do not ask a follow-up.' : 'If the answer is substantive, ask exactly one concise follow-up based on the previous question.'} After one follow-up, switch to a different selected interviewer category. Do not repeat an earlier question. Use a customer or business-impact angle when the technical answer does not explain impact.
+This is follow-up ${followUpNumber} for the current interviewer. If this is 0, begin with the new interviewer's perspective instead of continuing the previous line of questioning.
+
+Return only valid JSON:
+{
+  "questionText": "...",
+  "category": "${nextCategory}",
+  "difficulty": "easy|medium|hard",
+  "expectedKeywords": ["keyword1", "keyword2"]
+}`;
+
+  const response = await groq.chat.completions.create({
+    model: DEFAULT_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are an adaptive interview question generator. Return only valid JSON matching the requested schema.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.7,
+    max_tokens: 768,
+    response_format: { type: 'json_object' },
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error('No adaptive question returned by AI.');
+
+  const result = JSON.parse(content);
+  if (!result.questionText) throw new Error('Adaptive question was empty.');
+
+  return {
+    questionText: result.questionText,
+    category: selectedTypes.includes(result.category) ? result.category : nextCategory,
+    difficulty: ['easy', 'medium', 'hard'].includes(result.difficulty) ? result.difficulty : 'medium',
+    expectedKeywords: Array.isArray(result.expectedKeywords) ? result.expectedKeywords : [],
+  };
+};
+
 /**
  * Evaluate a candidate's answer using Groq
  */
@@ -590,6 +671,7 @@ ${jobDescription}`;
 
 module.exports = {
   generateInterviewQuestions,
+  generateNextInterviewQuestion,
   evaluateAnswer,
   generateOverallFeedback,
   parseResumeAndJD,

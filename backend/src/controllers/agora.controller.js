@@ -6,6 +6,7 @@ const {
   generateUserRtcToken,
   startAgent,
   updateAgentQuestion,
+  speakAgentMessage,
   stopAgent
 } = require('../services/agoraAgent.service');
 
@@ -49,7 +50,8 @@ exports.startInterviewAgent = async (req, res, next) => {
         const agentResponse = await startAgent({
           channelName,
           jobTitle: interview.jobTitle,
-          questions: interview.questions || []
+          questions: interview.questions || [],
+          totalQuestions: interview.numberOfQuestions
         });
         logger.info(`[Agora] AI Agent started: ${agentResponse.agent_id}, status: ${agentResponse.status}`);
       } catch (agentErr) {
@@ -120,7 +122,7 @@ exports.nextQuestionForAgent = async (req, res, next) => {
       jobTitle: interview.jobTitle,
       question,
       questionIndex,
-      totalQuestions: interview.questions.length
+      totalQuestions: interview.numberOfQuestions
     });
     res.status(200).json({
       success: true,
@@ -132,6 +134,24 @@ exports.nextQuestionForAgent = async (req, res, next) => {
       success: false,
       message: 'Agent update attempted.'
     });
+  }
+};
+
+/**
+ * POST /api/agora/:interviewId/message
+ * Speaks a short control message through the active Agora agent.
+ */
+exports.messageInterviewAgent = async (req, res, next) => {
+  const { text } = req.body;
+  if (!text) return next(new AppError('Agent message is required.', 400));
+
+  const channelName = `interview_${req.params.interviewId}`.replace(/[^a-zA-Z0-9_]/g, '_');
+  try {
+    await speakAgentMessage({ channelName, text });
+    res.status(200).json({ success: true });
+  } catch (err) {
+    logger.warn(`[Agora] Failed to speak control message: ${err.message}`);
+    res.status(200).json({ success: false });
   }
 };
 

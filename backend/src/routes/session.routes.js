@@ -4,6 +4,7 @@ const { protect } = require('../middleware/auth.middleware');
 const {
   startSession,
   submitAnswer,
+  generateNextQuestion,
   completeSession,
   getMySessions,
   getSessionById,
@@ -15,6 +16,7 @@ router.get('/', getMySessions);
 router.post('/start', startSession);
 router.get('/:id', getSessionById);
 router.post('/:id/answer', submitAnswer);
+router.post('/:id/next-question', generateNextQuestion);
 router.post('/:id/complete', completeSession);
 
 module.exports = router;

@@ -28,6 +28,9 @@ const sessionSchema = new mongoose.Schema(
       required: true,
     },
     answers: [answerSchema],
+    adaptiveContext: {
+      answeredQuestions: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    },
     status: {
       type: String,
       enum: ['started', 'in_progress', 'completed', 'abandoned'],

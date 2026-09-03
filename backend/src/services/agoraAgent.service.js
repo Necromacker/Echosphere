@@ -65,13 +65,24 @@ const getInterviewerRole = (category) => {
   return roles[category] || 'General Interviewer';
 };
 
+const waitForAgent = async (channelName, timeoutMs = 10000) => {
+  const startedAt = Date.now();
+  while (!activeAgents.has(channelName) && Date.now() - startedAt < timeoutMs) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  const agentId = activeAgents.get(channelName);
+  if (!agentId) throw new Error('Agora AI agent is not ready yet. Please try Next Question again.');
+  return agentId;
+};
+
 /**
  * Launch Agora Conversational AI Agent into the interview channel
  */
-const startAgent = async ({ channelName, jobTitle, questions = [] }) => {
+const startAgent = async ({ channelName, jobTitle, questions = [], totalQuestions }) => {
   const authHeader = getAgoraAuthHeader();
 
-  const totalQuestions = questions && questions.length > 0 ? questions.length : 1;
+  const targetQuestionCount = totalQuestions || (questions && questions.length > 0 ? questions.length : 1);
   const currentQ = questions && questions.length > 0 ? questions[0] : null;
   const q1Text = currentQ ? (currentQ.questionText || currentQ) : 'Tell me about your background and recent engineering challenges you solved.';
   const q1Role = getInterviewerRole(currentQ?.category);
@@ -81,11 +92,11 @@ const startAgent = async ({ channelName, jobTitle, questions = [] }) => {
 
   const systemPrompt = `# 1. ROLE & MISSION
 You are the ${q1Role} conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
-You are currently evaluating the candidate ONLY on Question 1 of ${totalQuestions}.
+You are currently evaluating the candidate ONLY on Question 1 of ${targetQuestionCount}.
 DO NOT ask or talk about any other question. Focus exclusively on Question 1.
 
 # 2. CURRENT QUESTION DETAILS
-- Question Number: Question 1 of ${totalQuestions}
+- Question Number: Question 1 of ${targetQuestionCount}
 - Question Text: "${q1Text}"
 - Expected Keywords/Concepts: ${q1Keywords}
 
@@ -96,6 +107,7 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
 2. Step 2 (Help User Answer):
    - If the candidate asks for clarification, says they don't understand, or asks you to explain:
      Briefly describe or clarify what the question is asking in 1 to 2 simple sentences to help them answer. Do NOT give away the complete answer, but guide them clearly.
+  - If the candidate says they do not know, has no answer, or is having difficulty, do not ask a follow-up. Tell them to click 'Next Question' when they are ready.
 
 3. Step 3 (Listen & Check Expected Keywords):
    - Listen attentively while the candidate speaks their answer.
@@ -135,7 +147,7 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
             content: systemPrompt
           }
         ],
-        greeting_message: `Hello! Welcome to your technical interview for ${jobTitle || 'this role'}. I will ask you ${totalQuestions} questions today. Let's begin with question 1: ${q1Text}`,
+        greeting_message: `Hello! Welcome to your AI interview for ${jobTitle || 'this role'}. I will ask you ${targetQuestionCount} questions today. Let's begin with question 1: ${q1Text}`,
         failure_message: "I didn't quite catch that. Could you please repeat that?"
       }
     }
@@ -162,11 +174,7 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
  * Update active Agora agent with ONLY the next question when user clicks Next Question
  */
 const updateAgentQuestion = async ({ channelName, jobTitle, question, questionIndex, totalQuestions }) => {
-  const agentId = activeAgents.get(channelName);
-  if (!agentId) {
-    logger.warn(`[Agora] No active agent found for channel: ${channelName}`);
-    return;
-  }
+  const agentId = await waitForAgent(channelName);
   const authHeader = getAgoraAuthHeader();
   const text = question.questionText || question;
   const interviewerRole = getInterviewerRole(question.category);
@@ -192,6 +200,7 @@ DO NOT ask or talk about any other question. Focus exclusively on Question ${que
 2. Step 2 (Help User Answer):
    - If the candidate asks for clarification, says they don't understand, or asks you to explain:
      Briefly describe or clarify what the question is asking in 1 to 2 simple sentences to help them answer.
+  - If the candidate says they do not know, has no answer, or is having difficulty, do not ask a follow-up. Tell them to click 'Next Question' when they are ready.
 
 3. Step 3 (Listen & Check Expected Keywords):
    - Listen attentively while the candidate speaks their answer.
@@ -250,7 +259,7 @@ DO NOT ask or talk about any other question. Focus exclusively on Question ${que
       }
     });
   } catch (speakErr) {
-    logger.warn(`[Agora] Speak endpoint note: ${speakErr.message}`);
+    throw new Error(`Agora could not speak Question ${questionIndex + 1}: ${speakErr.message}`);
   }
 };
 
@@ -285,10 +294,24 @@ const stopAgent = async (channelName) => {
   }
 };
 
+const speakAgentMessage = async ({ channelName, text }) => {
+  const agentId = await waitForAgent(channelName);
+
+  const authHeader = getAgoraAuthHeader();
+  const speakUrl = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${AGORA_APP_ID}/agents/${agentId}/speak`;
+  await axios.post(speakUrl, { text, priority: 'high', interruptable: true }, {
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json'
+    }
+  });
+};
+
 module.exports = {
   AGORA_APP_ID,
   generateUserRtcToken,
   startAgent,
   updateAgentQuestion,
+  speakAgentMessage,
   stopAgent
 };
