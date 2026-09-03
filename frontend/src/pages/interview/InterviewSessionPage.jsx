@@ -7,7 +7,6 @@ import {
   Phone, PhoneOff, Radio, Sparkles
 } from 'lucide-react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { io } from 'socket.io-client';
 import { interviewAPI, sessionAPI, agoraAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -28,11 +27,6 @@ export default function InterviewSessionPage() {
   const [completing, setCompleting] = useState(false);
   const [startTime, setStartTime] = useState(Date.now());
   const [elapsed, setElapsed] = useState(0);
-
-  // Live WebSocket AI Flow
-  const [socket, setSocket] = useState(null);
-  const [liveFeedback, setLiveFeedback] = useState('');
-  const [isReceivingFeedback, setIsReceivingFeedback] = useState(false);
 
   // Agora Conversational AI Agent State
   const clientRef = useRef(null);
@@ -157,78 +151,8 @@ export default function InterviewSessionPage() {
     };
   }, []);
 
-  useEffect(() => {
-    const socketUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : 'http://localhost:5001';
-    const s = io(socketUrl, { withCredentials: true });
-    setSocket(s);
-    
-    s.on("ai_chunk", (chunk) => {
-      setLiveFeedback((prev) => prev + chunk);
-    });
-
-    s.on("ai_complete", () => {
-      setIsReceivingFeedback(false);
-    });
-
-    s.on("ai_error", () => {
-      setIsReceivingFeedback(false);
-      toast.error("Live AI connection failed.");
-    });
-
-    return () => s.disconnect();
-  }, []);
-
-  const handleLiveAIFeedback = () => {
-    if (!answerText.trim()) return toast.error('Say or type something to ask the AI!');
-    setLiveFeedback('');
-    setIsReceivingFeedback(true);
-    socket?.emit("live_answer", {
-      questionText: currentQuestion?.questionText,
-      expectedKeywords: currentQuestion?.expectedKeywords,
-      answerText: answerText.trim()
-    });
-  };
-
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-
-  const toggleSpeakQuestion = () => {
-    if (!window.speechSynthesis) return toast.error('Text-to-speech not supported.');
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    } else {
-      const text = currentQuestion?.questionText;
-      if (!text) return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95; 
-      utterance.pitch = 1.0;
-      utterance.onend = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-      setIsSpeaking(true);
-    }
-  };
-
-  // Stop speaking when question changes or unmounts, and optionally auto-play the next question
-  useEffect(() => {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-    
-    // Auto-read the new question after a short delay for smooth transition
-    const text = interview?.questions?.[currentIdx]?.questionText;
-    if (text && window.speechSynthesis) {
-      const timer = setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.95;
-        utterance.pitch = 1.0;
-        utterance.onend = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
-        setIsSpeaking(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [currentIdx, interview?.questions]);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -341,16 +265,12 @@ export default function InterviewSessionPage() {
     setCurrentIdx((i) => i + 1);
     setElapsed(0);
     setStartTime(Date.now());
-    setLiveFeedback('');
-    setIsReceivingFeedback(false);
   };
 
   const handlePrev = () => {
     const prev = interview?.questions?.[currentIdx - 1];
     setAnswerText(savedAnswers[prev?._id]?.answerText || '');
     setCurrentIdx((i) => i - 1);
-    setLiveFeedback('');
-    setIsReceivingFeedback(false);
   };
 
   const handleComplete = async () => {
@@ -542,22 +462,10 @@ export default function InterviewSessionPage() {
             )}
           </div>
 
-          <div className="flex items-start justify-between gap-4">
+          <div>
             <p className="text-white text-lg leading-relaxed font-medium">
               {currentQuestion?.questionText}
             </p>
-            <button
-              type="button"
-              onClick={toggleSpeakQuestion}
-              className={`flex-shrink-0 p-2 rounded-full transition-colors ${
-                isSpeaking 
-                  ? 'bg-brand-500/20 text-brand-400 animate-pulse' 
-                  : 'bg-surface hover:bg-surface-hover text-slate-400 border border-surface-border'
-              }`}
-              title="Read Question Aloud"
-            >
-              {isSpeaking ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
           </div>
 
           <div>
@@ -566,7 +474,7 @@ export default function InterviewSessionPage() {
                 Your Answer
               </label>
               <button 
-                type="button"
+                type="button" 
                 onClick={toggleListening}
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md transition-colors ${isListening ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse' : 'bg-surface hover:bg-surface-hover text-slate-400 border border-surface-border'}`}
               >
@@ -591,34 +499,6 @@ export default function InterviewSessionPage() {
               </p>
             </div>
           )}
-
-          {/* Real-time AI Insight Box */}
-          <div className="pt-2">
-            <button 
-              type="button" 
-              onClick={handleLiveAIFeedback}
-              disabled={isReceivingFeedback || !answerText.trim()}
-              className="btn-secondary w-full py-2.5 text-sm gap-2"
-            >
-              {isReceivingFeedback ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageSquare className="w-4 h-4 text-brand-400" />}
-              {isReceivingFeedback ? 'AI is thinking...' : 'Get Live AI Follow-up (Socket.io streamed)'}
-            </button>
-            
-            {(liveFeedback || isReceivingFeedback) && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mt-3 p-4 bg-surface rounded-lg border border-brand-500/30 font-mono text-sm text-brand-100"
-              >
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-brand-500/20">
-                   <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                   <span className="text-brand-300 font-bold text-xs uppercase tracking-wider">Live Interviewer Stream</span>
-                </div>
-                {liveFeedback}
-                {isReceivingFeedback && <span className="inline-block w-1.5 h-3 ml-1 bg-brand-400 animate-pulse" />}
-              </motion.div>
-            )}
-          </div>
         </motion.div>
       </AnimatePresence>
 
