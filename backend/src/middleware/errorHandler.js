@@ -32,9 +32,10 @@ const errorHandler = (err, req, res, next) => {
   }
 
   if (process.env.NODE_ENV === 'development') {
-    logger.error(err.stack);
+    logger.error(`Request failed: ${req.method} ${req.originalUrl} status=${statusCode} name=${err.name || 'Error'} code=${err.code || 'n/a'} message=${message}`);
+    if (err.stack) logger.error(err.stack);
   } else {
-    logger.error(`${statusCode} - ${message} - ${req.originalUrl}`);
+    logger.error(`${statusCode} - ${message} - ${req.method} ${req.originalUrl}`);
   }
 
   res.status(statusCode).json({

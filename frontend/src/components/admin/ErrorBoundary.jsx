@@ -18,9 +18,7 @@ export default class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught admin layout exception:', error, errorInfo);
-  }
+  componentDidCatch() {}
 
   handleRestart = () => {
     this.setState({ hasError: false, error: null });

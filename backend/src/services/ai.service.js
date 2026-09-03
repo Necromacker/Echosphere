@@ -159,6 +159,8 @@ Evaluate the candidate's answer strictly based on:
 2. Clarity
 3. Depth
 
+Ignore filler words and sentences where the candidate asks for the question to be repeated or asks for help understanding the question. Evaluate only the substantive answer content.
+
 Return valid JSON exactly in this format:
 {
   "score": <number 1-10>,

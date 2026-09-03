@@ -13,6 +13,8 @@ export default function InterviewSessionPage() {
   const { id: interviewId } = useParams();
   const navigate = useNavigate();
 
+  AgoraRTC.setLogLevel(4);
+
   const [interview, setInterview] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +57,21 @@ export default function InterviewSessionPage() {
     const init = async () => {
       try {
         const { data: intData } = await interviewAPI.getById(interviewId);
-        setInterview(intData.interview);
+        const loadedInterview = intData.interview;
+        console.log('[Interview Details]', {
+          interviewId,
+          jobTitle: loadedInterview.jobTitle,
+          experienceLevel: loadedInterview.experienceLevel,
+          totalQuestions: loadedInterview.questions?.length || 0,
+          questions: (loadedInterview.questions || []).map((question, index) => ({
+            number: index + 1,
+            question: question.questionText,
+            expectedKeywords: question.expectedKeywords || [],
+            category: question.category,
+            difficulty: question.difficulty,
+          })),
+        });
+        setInterview(loadedInterview);
         const { data: sessData } = await sessionAPI.start(interviewId);
         setSession(sessData.session);
       } catch (err) {
@@ -91,10 +107,6 @@ export default function InterviewSessionPage() {
         }
       };
 
-      rec.onerror = (e) => {
-        console.warn('[SpeechRec] Error/Info:', e.error);
-      };
-
       rec.onend = () => {
         if (recognitionRef.current && isVoiceActive) {
           try { rec.start(); } catch {}
@@ -103,9 +115,7 @@ export default function InterviewSessionPage() {
 
       rec.start();
       recognitionRef.current = rec;
-    } catch (err) {
-      console.warn('[SpeechRec] Init failed:', err);
-    }
+    } catch {}
   };
 
   const stopSpeechCapture = () => {
@@ -139,12 +149,7 @@ export default function InterviewSessionPage() {
         }
       });
 
-      client.on('user-joined', (user) => {
-        console.log('[Agora] Remote user joined channel:', user.uid);
-      });
-
       client.on('user-left', (user) => {
-        console.log('[Agora] Remote user left channel:', user.uid);
         setIsAiSpeaking(false);
       });
 
@@ -158,7 +163,6 @@ export default function InterviewSessionPage() {
       startSpeechCapture();
       toast.success('Connected! Agora AI Interviewer is joining...', { icon: '🎙️' });
     } catch (err) {
-      console.error('[Agora Connection Error]:', err);
       if (trackRef.current) {
         trackRef.current.stop();
         trackRef.current.close();
@@ -188,8 +192,7 @@ export default function InterviewSessionPage() {
         clientRef.current = null;
       }
       await agoraAPI.stop(interviewId);
-    } catch (err) {
-      console.error('[Agora Stop Error]:', err);
+    } catch {
     } finally {
       setIsVoiceActive(false);
       setIsAiSpeaking(false);
@@ -230,9 +233,7 @@ export default function InterviewSessionPage() {
       // Dynamically provide ONLY this next question to Agora
       try {
         await agoraAPI.nextQuestion(interviewId, { questionIndex: nextIndex });
-      } catch (err) {
-        console.warn('[Agora] Next question update error:', err);
-      }
+      } catch {}
       toast.success(`Question ${currentIdx + 1} saved! Agora presenting Question ${nextIndex + 1}...`, {
         icon: '✅',
       });

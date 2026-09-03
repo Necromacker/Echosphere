@@ -15,7 +15,6 @@ const morgan     = require('morgan');
 const rateLimit  = require('express-rate-limit');
 const compression = require('compression');
 
-const connectDB      = require('./config/db');
 const errorHandler   = require('./middleware/errorHandler');
 
 // Route Imports
@@ -29,9 +28,6 @@ const adminRoutes     = require('./routes/admin.routes');
 const agoraRoutes     = require('./routes/agora.routes');
 
 const app = express();
-
-// ─── Database ──────────────────────────────────────────────────────
-connectDB();
 
 // ─── Security Headers ─────────────────────────────────────────────
 app.use(helmet());

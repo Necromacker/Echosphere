@@ -53,6 +53,8 @@ Rules:
 
 Analyze the match rate, compute a score out of 100, identify skill gaps, and provide recommendations.
 
+  When evaluating the candidate's answer, ignore filler words and sentences where the candidate asks for the question to be repeated or asks for help understanding the question. Evaluate only the substantive answer content.
+
 Format output as JSON:
 {
   "score": Number,

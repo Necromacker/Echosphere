@@ -1,9 +1,14 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User.model');
 const AppError = require('../utils/AppError');
 
 // ─── Helper: Get or create default user for no-auth mode ─────────
 const getDefaultUser = async () => {
+  if (mongoose.connection.readyState !== 1) {
+    throw new AppError('Database unavailable. Please check the MongoDB connection.', 503);
+  }
+
   let user = await User.findOne({ email: 'guest@interviewai.com' });
   if (!user) {
     user = await User.findOne({ role: 'super_admin' }) || await User.findOne();

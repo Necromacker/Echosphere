@@ -9,32 +9,45 @@
  */
 
 require('dotenv').config({ override: true });
-console.log('SERVER APP ID:', process.env.ADZUNA_APP_ID);
-console.log('SERVER APP KEY:', process.env.ADZUNA_APP_KEY);
 
 const app = require('./app');
 const logger = require('./config/logger');
-
-const mongoose = require('mongoose');
+const connectDB = require('./config/db');
 
 const PORT = process.env.PORT || 5000;
 
-// ─── Start HTTP server ─────────────────────────────────────────────
 const { connect: connectRedis } = require('./config/redis');
 
-const server = app.listen(PORT, async () => {
-  logger.info(`🚀 Server running in [${process.env.NODE_ENV}] mode on port ${PORT}`);
-  // Connect to Redis on server startup
-  await connectRedis();
-});
+// ─── Start HTTP server after database initialization ───────────────
+let server;
 
-// Initialize WebSocket for real-time AI interviews
-const initSocket = require('./socket');
-const io = initSocket(server);
+const startServer = async () => {
+  logger.info(`Server startup: environment=${process.env.NODE_ENV || 'undefined'}, port=${PORT}`);
+  const databaseConnected = await connectDB();
+  logger.info(`Server startup: databaseConnected=${databaseConnected}`);
+
+  server = app.listen(PORT, async () => {
+    logger.info(`🚀 Server running in [${process.env.NODE_ENV}] mode on port ${PORT}`);
+    await connectRedis();
+  });
+
+  // Initialize WebSocket for real-time AI interviews
+  const initSocket = require('./socket');
+  initSocket(server);
+};
+
+startServer().catch((err) => {
+  logger.error(`💥 Server startup failed: ${err.name} — ${err.message}`);
+  process.exit(1);
+});
 
 // ─── Graceful Shutdown: unhandled promise rejections ──────────────
 process.on('unhandledRejection', (err) => {
-  logger.error(`💥 Unhandled Rejection: ${err.name} — ${err.message}`);
+  logger.error(`💥 Unhandled Rejection: name=${err.name}, message=${err.message}`);
+  if (err.stack) logger.error(err.stack);
+  if (!server) {
+    process.exit(1);
+  }
   server.close(() => {
     logger.warn('Server closed after unhandledRejection. Exiting...');
     process.exit(1);
@@ -43,13 +56,17 @@ process.on('unhandledRejection', (err) => {
 
 // ─── Graceful Shutdown: uncaught sync exceptions ──────────────────
 process.on('uncaughtException', (err) => {
-  logger.error(`💥 Uncaught Exception: ${err.name} — ${err.message}`);
+  logger.error(`💥 Uncaught Exception: name=${err.name}, message=${err.message}`);
+  if (err.stack) logger.error(err.stack);
   process.exit(1);
 });
 
 // ─── Graceful Shutdown: SIGTERM (Docker / Heroku / Render) ────────
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received. Shutting down gracefully...');
+  if (!server) {
+    process.exit(0);
+  }
   server.close(() => {
     logger.info('Process terminated.');
     process.exit(0);
