@@ -53,6 +53,18 @@ const generateUserRtcToken = (channelName, uid = 0) => {
 // In-memory mapping of active agent instances (channelName -> agentId)
 const activeAgents = new Map();
 
+const getInterviewerRole = (category) => {
+  const roles = {
+    technical: 'Technical Interviewer',
+    behavioral: 'Behavioral Interviewer',
+    situational: 'Hiring Manager',
+    hr: 'Hiring Manager',
+    culture_fit: 'Customer / Culture Interviewer',
+  };
+
+  return roles[category] || 'General Interviewer';
+};
+
 /**
  * Launch Agora Conversational AI Agent into the interview channel
  */
@@ -62,12 +74,13 @@ const startAgent = async ({ channelName, jobTitle, questions = [] }) => {
   const totalQuestions = questions && questions.length > 0 ? questions.length : 1;
   const currentQ = questions && questions.length > 0 ? questions[0] : null;
   const q1Text = currentQ ? (currentQ.questionText || currentQ) : 'Tell me about your background and recent engineering challenges you solved.';
+  const q1Role = getInterviewerRole(currentQ?.category);
   const q1Keywords = currentQ?.expectedKeywords && currentQ.expectedKeywords.length > 0
     ? currentQ.expectedKeywords.join(', ')
     : 'problem solving, technical depth, core engineering';
 
   const systemPrompt = `# 1. ROLE & MISSION
-You are a Senior Technical Interviewer conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
+You are the ${q1Role} conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
 You are currently evaluating the candidate ONLY on Question 1 of ${totalQuestions}.
 DO NOT ask or talk about any other question. Focus exclusively on Question 1.
 
@@ -156,12 +169,13 @@ const updateAgentQuestion = async ({ channelName, jobTitle, question, questionIn
   }
   const authHeader = getAgoraAuthHeader();
   const text = question.questionText || question;
+  const interviewerRole = getInterviewerRole(question.category);
   const keywords = question.expectedKeywords && question.expectedKeywords.length > 0
     ? question.expectedKeywords.join(', ')
     : 'core technical principles';
 
   const systemPrompt = `# 1. ROLE & MISSION
-You are a Senior Technical Interviewer conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
+You are the ${interviewerRole} conducting a live voice interview for the role of "${jobTitle || 'Software Engineer'}".
 The candidate just moved to Question ${questionIndex + 1} of ${totalQuestions}.
 You are currently evaluating the candidate ONLY on Question ${questionIndex + 1} of ${totalQuestions}.
 DO NOT ask or talk about any other question. Focus exclusively on Question ${questionIndex + 1}.

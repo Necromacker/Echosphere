@@ -9,6 +9,18 @@ import AgoraRTC from 'agora-rtc-sdk-ng';
 import { interviewAPI, sessionAPI, agoraAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
+const getInterviewerRole = (category) => {
+  const roles = {
+    technical: 'Technical Interviewer',
+    behavioral: 'Behavioral Interviewer',
+    situational: 'Hiring Manager',
+    hr: 'Hiring Manager',
+    culture_fit: 'Customer / Culture Interviewer',
+  };
+
+  return roles[category] || 'General Interviewer';
+};
+
 export default function InterviewSessionPage() {
   const { id: interviewId } = useParams();
   const navigate = useNavigate();
@@ -71,6 +83,11 @@ export default function InterviewSessionPage() {
             difficulty: question.difficulty,
           })),
         });
+        console.log('[Interview Panel Roles]', (loadedInterview.questions || []).map((question, index) => ({
+          questionNumber: index + 1,
+          category: question.category,
+          interviewerRole: getInterviewerRole(question.category),
+        })));
         setInterview(loadedInterview);
         const { data: sessData } = await sessionAPI.start(interviewId);
         setSession(sessData.session);

@@ -56,6 +56,7 @@ exports.generateQuestions = async (req, res, next) => {
       jobTitle: interview.jobTitle,
       jobDescription: interview.jobDescription,
       experienceLevel: interview.experienceLevel,
+      questionTypes: interview.questionTypes,
       numberOfQuestions: interview.numberOfQuestions,
       resumeText,
     });

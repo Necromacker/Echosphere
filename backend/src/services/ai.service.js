@@ -34,14 +34,20 @@ const generateInterviewQuestions = async ({
   jobTitle,
   jobDescription,
   experienceLevel,
+  questionTypes = ['technical', 'behavioral'],
   numberOfQuestions = 10,
   resumeText = null,
 }) => {
   const optimizedContext = await extractContextViaRAG(resumeText, jobDescription);
 
-  // Distribute questions: ~2/3 technical, ~1/3 behavioral (min 1 each)
-  const technicalCount = Math.max(1, Math.round((numberOfQuestions * 2) / 3));
-  const behavioralCount = Math.max(1, numberOfQuestions - technicalCount);
+  const selectedTypes = questionTypes?.length ? questionTypes : ['technical', 'behavioral'];
+  const questionsPerType = Math.ceil(numberOfQuestions / selectedTypes.length);
+  const requestedTypes = selectedTypes
+    .map((type) => `- ${questionsPerType} ${type} questions`)
+    .join('\n');
+  const responseShape = selectedTypes
+    .map((type) => `  "${type}": [{ "questionText": "...", "difficulty": "easy|medium|hard", "expectedKeywords": ["keyword1", "keyword2"] }]`)
+    .join(',\n');
 
   const systemPrompt = `You are an expert technical interviewer and HR specialist.
 You create precise, challenging, and role-relevant interview questions solely based on the provided context retrieved from RAG chunks.
@@ -59,8 +65,7 @@ Job Title: ${jobTitle}
 Experience Level: ${experienceLevel}
 
 Generate:
-- ${technicalCount} technical questions
-- ${behavioralCount} behavioral questions
+${requestedTypes}
 
 Rules:
 - STRICT GROUNDING: You MUST base every single question ONLY on the provided retrieved chunks above.
@@ -69,24 +74,12 @@ Rules:
 - Avoid generic questions.
 - Behavioral questions should use STAR method format.
 - Technical questions should test real-world problem solving.
+- Situational, HR, and culture_fit questions should match their selected category.
 - Include 3-5 expected keywords for each question.
 
 Return structured JSON exactly in this format:
 {
-  "technical": [
-    {
-      "questionText": "...",
-      "difficulty": "easy|medium|hard",
-      "expectedKeywords": ["keyword1", "keyword2"]
-    }
-  ],
-  "behavioral": [
-    {
-      "questionText": "...",
-      "difficulty": "easy|medium|hard",
-      "expectedKeywords": ["keyword1", "keyword2"]
-    }
-  ]
+${responseShape}
 }`;
 
   const response = await groq.chat.completions.create({
@@ -110,36 +103,24 @@ Return structured JSON exactly in this format:
     throw new Error('AI returned invalid JSON. Please try again.');
   }
 
-  const technicalQs = Array.isArray(parsed.technical) ? parsed.technical : [];
-  const behavioralQs = Array.isArray(parsed.behavioral) ? parsed.behavioral : [];
+  const allQuestions = selectedTypes.flatMap((category) => (
+    Array.isArray(parsed[category])
+      ? parsed[category].map((question) => ({ ...question, category }))
+      : []
+  ));
 
-  if (!technicalQs.length && !behavioralQs.length) {
+  if (!allQuestions.length) {
     throw new Error('AI returned no valid questions. Please try again.');
   }
 
   // Flatten and map to MongoDB question schema format
-  const allQuestions = [];
-  
-  technicalQs.forEach(q => {
-    allQuestions.push({
-      questionText: q.questionText || q.question || '',
-      category: 'technical',
-      difficulty: q.difficulty || 'medium',
-      expectedKeywords: Array.isArray(q.expectedKeywords) ? q.expectedKeywords : [],
-    });
-  });
-
-  behavioralQs.forEach(q => {
-    allQuestions.push({
-      questionText: q.questionText || q.question || '',
-      category: 'behavioral',
-      difficulty: q.difficulty || 'medium',
-      expectedKeywords: Array.isArray(q.expectedKeywords) ? q.expectedKeywords : [],
-    });
-  });
-
   // Safety slice: ensure we never return more than the requested number of questions
-  const trimmed = allQuestions.slice(0, numberOfQuestions);
+  const trimmed = allQuestions.slice(0, numberOfQuestions).map((question) => ({
+    questionText: question.questionText || question.question || '',
+    category: question.category,
+    difficulty: question.difficulty || 'medium',
+    expectedKeywords: Array.isArray(question.expectedKeywords) ? question.expectedKeywords : [],
+  }));
   return trimmed.map((q, i) => ({ ...q, order: i + 1 }));
 };
 
