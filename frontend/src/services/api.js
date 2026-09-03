@@ -44,14 +44,9 @@ export const sessionAPI = {
   getById: (id) => api.get(`/sessions/${id}`),
 };
 
-// ── Jobs ───────────────────────────────────────────────────────────
-export const jobsAPI = {
-  // Database active jobs endpoint (paginated, filtered)
-  getJobs: (params) => api.get('/jobs', { params }),
-  // Adzuna live search (kept for backward compatibility)
-  search: (params) => api.get('/jobs/search', { params }),
-  getById: (id) => api.get(`/jobs/${id}`),
-  getCategories: () => api.get('/jobs/categories'),
-  getRecommended: () => api.get('/jobs/recommended'),
-  generateQuestionsDirect: (data) => api.post('/jobs/generate-questions', data),
+// ── Agora Conversational AI Agent ─────────────────────────────────
+export const agoraAPI = {
+  start: (interviewId) => api.post(`/agora/${interviewId}/start`),
+  stop: (interviewId) => api.post(`/agora/${interviewId}/stop`),
 };
+

@@ -1,12 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronRight, ChevronLeft, SkipForward, CheckCircle,
-  Clock, Mic, Send, Loader2, AlertCircle, BrainCircuit, Volume2, VolumeX, MessageSquare
+  Clock, Mic, MicOff, Send, Loader2, AlertCircle, BrainCircuit, Volume2, VolumeX, MessageSquare,
+  Phone, PhoneOff, Radio, Sparkles
 } from 'lucide-react';
+import AgoraRTC from 'agora-rtc-sdk-ng';
 import { io } from 'socket.io-client';
-import { interviewAPI, sessionAPI } from '@/services/api';
+import { interviewAPI, sessionAPI, agoraAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
 const DIFFICULTY_CLR = { easy: 'badge-success', medium: 'badge-warning', hard: 'badge-danger' };
@@ -31,6 +33,129 @@ export default function InterviewSessionPage() {
   const [socket, setSocket] = useState(null);
   const [liveFeedback, setLiveFeedback] = useState('');
   const [isReceivingFeedback, setIsReceivingFeedback] = useState(false);
+
+  // Agora Conversational AI Agent State
+  const clientRef = useRef(null);
+  const trackRef = useRef(null);
+  const [localAudioTrack, setLocalAudioTrack] = useState(null);
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [isConnectingVoice, setIsConnectingVoice] = useState(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(false);
+
+  const startAgoraVoiceSession = async () => {
+    setIsConnectingVoice(true);
+    try {
+      // 1. Tell backend to start Agora Conversational AI Agent & get credentials
+      const { data } = await agoraAPI.start(interviewId);
+      const { appId, channelName, token, uid } = data.data;
+
+      // 2. Initialize Agora RTC client
+      const client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
+      clientRef.current = client;
+
+      // 3. Set up event listeners for AI agent voice BEFORE joining
+      client.on('user-published', async (user, mediaType) => {
+        await client.subscribe(user, mediaType);
+        if (mediaType === 'audio') {
+          user.audioTrack.play();
+          setIsAiSpeaking(true);
+        }
+      });
+
+      client.on('user-unpublished', (user, mediaType) => {
+        if (mediaType === 'audio') {
+          setIsAiSpeaking(false);
+        }
+      });
+
+      client.on('user-joined', (user) => {
+        console.log('[Agora] Remote user joined channel:', user.uid);
+      });
+
+      client.on('user-left', (user) => {
+        console.log('[Agora] Remote user left channel:', user.uid);
+        setIsAiSpeaking(false);
+      });
+
+      // 4. Join RTC channel FIRST (so we're in the room when the agent arrives)
+      await client.join(appId, channelName, token || null, uid);
+      console.log('[Agora] Candidate joined channel:', channelName, 'with uid:', uid);
+
+      // 5. Create and publish microphone track BEFORE agent starts
+      const micTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      trackRef.current = micTrack;
+      setLocalAudioTrack(micTrack);
+      await client.publish([micTrack]);
+      console.log('[Agora] Candidate microphone published. Waiting for AI agent...');
+
+      setIsVoiceActive(true);
+      toast.success('Connected! AI interviewer is joining...', { icon: '🎙️' });
+    } catch (err) {
+      console.error('[Agora Connection Error]:', err);
+      // Clean up in case of failure
+      if (trackRef.current) {
+        trackRef.current.stop();
+        trackRef.current.close();
+        trackRef.current = null;
+        setLocalAudioTrack(null);
+      }
+      if (clientRef.current) {
+        try { await clientRef.current.leave(); } catch {}
+        clientRef.current = null;
+      }
+      toast.error(err.response?.data?.message || err.message || 'Failed to connect Agora Voice Agent');
+    } finally {
+      setIsConnectingVoice(false);
+    }
+  };
+
+  const stopAgoraVoiceSession = async () => {
+    try {
+      if (trackRef.current) {
+        trackRef.current.stop();
+        trackRef.current.close();
+        trackRef.current = null;
+        setLocalAudioTrack(null);
+      }
+      if (clientRef.current) {
+        await clientRef.current.leave();
+        clientRef.current = null;
+      }
+      await agoraAPI.stop(interviewId);
+    } catch (err) {
+      console.error('[Agora Stop Error]:', err);
+    } finally {
+      setIsVoiceActive(false);
+      setIsAiSpeaking(false);
+      setIsMicMuted(false);
+      toast('Agora Voice Agent disconnected.', { icon: '🔌' });
+    }
+  };
+
+  const toggleMuteMic = () => {
+    if (trackRef.current) {
+      const nextMuted = !isMicMuted;
+      trackRef.current.setEnabled(!nextMuted);
+      setIsMicMuted(nextMuted);
+      toast(nextMuted ? 'Microphone muted' : 'Microphone unmuted', { icon: nextMuted ? '🔇' : '🎙️' });
+    }
+  };
+
+  // Safe unmount cleanup only
+  useEffect(() => {
+    return () => {
+      if (trackRef.current) {
+        trackRef.current.stop();
+        trackRef.current.close();
+        trackRef.current = null;
+      }
+      if (clientRef.current) {
+        try { clientRef.current.leave(); } catch {}
+        clientRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '') : 'http://localhost:5001';
@@ -229,6 +354,9 @@ export default function InterviewSessionPage() {
   };
 
   const handleComplete = async () => {
+    if (isVoiceActive) {
+      await stopAgoraVoiceSession();
+    }
     await saveAnswer(false);
     setCompleting(true);
     try {
@@ -270,6 +398,120 @@ export default function InterviewSessionPage() {
           </div>
           <span className="text-sm text-slate-400">{currentIdx + 1} / {totalQuestions}</span>
         </div>
+      </div>
+
+      {/* Agora Conversational AI Agent Voice Panel */}
+      <div className={`card p-5 border transition-all duration-300 ${
+        isVoiceActive 
+          ? 'border-emerald-500/40 bg-emerald-950/20 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-500/20' 
+          : 'border-brand-500/30 bg-brand-950/20'
+      }`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-xl transition-colors ${
+              isVoiceActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/20 text-brand-400'
+            }`}>
+              <Radio className={`w-6 h-6 ${isVoiceActive ? 'animate-pulse text-emerald-400' : 'text-brand-400'}`} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-white font-semibold text-base flex items-center gap-2">
+                  Agora Conversational AI Voice Agent
+                  {isVoiceActive && (
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                  )}
+                </h3>
+                {isVoiceActive && (
+                  <span className="badge badge-success text-[11px] py-0.5">
+                    {isAiSpeaking ? 'AI Speaking 🔊' : 'Listening to You 🎙️'}
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-400 text-xs mt-0.5">
+                {isVoiceActive
+                  ? 'Real-time conversational voice interview active (Deepgram Nova-3 + GPT-4o-mini + Minimax).'
+                  : 'Start real-time two-way voice dialogue with the AI interviewer.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            {isVoiceActive ? (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleMuteMic}
+                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                    isMicMuted 
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' 
+                      : 'bg-surface hover:bg-surface-hover text-slate-300 border border-surface-border'
+                  }`}
+                >
+                  {isMicMuted ? <MicOff className="w-4 h-4 text-amber-400" /> : <Mic className="w-4 h-4 text-emerald-400" />}
+                  {isMicMuted ? 'Unmute' : 'Mute'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={stopAgoraVoiceSession}
+                  className="btn-secondary py-2 px-3 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 border-red-500/30 gap-1.5"
+                >
+                  <PhoneOff className="w-4 h-4" />
+                  Disconnect Voice
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={startAgoraVoiceSession}
+                disabled={isConnectingVoice}
+                className="btn-primary py-2.5 px-4 text-sm gap-2 w-full sm:w-auto bg-gradient-to-r from-brand-600 to-emerald-600 hover:from-brand-500 hover:to-emerald-500 shadow-md shadow-brand-500/20"
+              >
+                {isConnectingVoice ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Connecting to Agora...
+                  </>
+                ) : (
+                  <>
+                    <Phone className="w-4 h-4" />
+                    Start Agora Voice Interview
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Active voice waveform animation */}
+        {isVoiceActive && (
+          <div className="mt-4 pt-3 border-t border-emerald-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 h-5">
+              {[40, 75, 50, 90, 60, 100, 45, 80, 55, 70].map((h, i) => (
+                <span
+                  key={i}
+                  className={`w-1 rounded-full transition-all duration-150 ${
+                    isAiSpeaking ? 'bg-emerald-400' : 'bg-brand-400'
+                  }`}
+                  style={{
+                    height: isAiSpeaking ? `${h}%` : '20%',
+                    animation: isAiSpeaking ? `pulse 0.8s ease-in-out infinite alternate ${i * 0.08}s` : 'none'
+                  }}
+                />
+              ))}
+              <span className="text-xs text-slate-300 ml-2 font-mono">
+                {isAiSpeaking ? 'AI is speaking...' : isMicMuted ? 'Mic Muted' : 'Mic Live • Speak naturally'}
+              </span>
+            </div>
+
+            <span className="text-[11px] text-emerald-400 font-mono">
+              Channel: interview_{interviewId.slice(-6)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Progress */}

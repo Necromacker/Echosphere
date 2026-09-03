@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
   BrainCircuit, LayoutDashboard, MessageSquarePlus,
-  ClipboardList, FileText, History, User, LogOut, X, Briefcase, Sparkles
+  ClipboardList, FileText, History, User, LogOut, X
 } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
@@ -14,8 +14,6 @@ const NAV_ITEMS = [
   { to: '/interviews/new', icon: MessageSquarePlus, label: 'New Interview' },
   { to: '/sessions',    icon: History,            label: 'History' },
   { to: '/resumes',     icon: FileText,           label: 'Resumes' },
-  { to: '/jobs',        icon: Briefcase,          label: 'Jobs' },
-  { to: '/jobs/recommended', icon: Sparkles,       label: 'Recommendations' },
   { to: '/profile',     icon: User,               label: 'Profile' },
 ];
 
@@ -92,11 +90,6 @@ function SidebarContent({ user, onLogout, onNavClick }) {
               <>
                 <Icon className={clsx('w-5 h-5', isActive ? 'text-brand-400' : '')} />
                 <span className="flex-1">{label}</span>
-                {label === 'Jobs' && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-400 border border-brand-500/20 uppercase tracking-tight">
-                    Soon
-                  </span>
-                )}
               </>
             )}
           </NavLink>

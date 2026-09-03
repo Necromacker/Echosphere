@@ -1,11 +1,11 @@
-const User        = require('../models/User.model');
-const Interview   = require('../models/Interview.model');
-const Session     = require('../models/Session.model');
-const Resume      = require('../models/Resume.model');
-const Job         = require('../models/Job.model');
+const User = require('../models/User.model');
+const Interview = require('../models/Interview.model');
+const Session = require('../models/Session.model');
+const Resume = require('../models/Resume.model');
+const Job = require('../models/Job.model');
 const Transaction = require('../models/Transaction.model');
-const AuditLog    = require('../models/AuditLog.model');
-const AppError    = require('../utils/AppError');
+const AuditLog = require('../models/AuditLog.model');
+const AppError = require('../utils/AppError');
 
 const ADMIN_EMAIL = 'aftab@admin.com';
 const ADMIN_ROLES = ['admin', 'super_admin'];
@@ -105,7 +105,7 @@ exports.getStats = async (req, res) => {
 
   // Generate charts datasets (User Growth, Revenue, Interviews, Daily Activity)
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1);
@@ -143,7 +143,7 @@ exports.getStats = async (req, res) => {
 
   const userGrowthMap = {};
   usersTrend.forEach(u => { userGrowthMap[u._id] = u.count; });
-  
+
   const revMap = {};
   revTrend.forEach(r => { revMap[r._id] = r.total; });
 
@@ -158,7 +158,7 @@ exports.getStats = async (req, res) => {
     d.setMonth(d.getMonth() - i);
     const monthName = monthNames[d.getMonth()];
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const monthlyRegs = userGrowthMap[key] || 0;
     cumulativeUsers += monthlyRegs;
 
@@ -208,7 +208,7 @@ exports.getStats = async (req, res) => {
 
   const sessionDaysMap = {};
   weekSessions.forEach(s => { sessionDaysMap[s._id] = s.count; });
-  
+
   const userDaysMap = {};
   weekUsers.forEach(u => { userDaysMap[u._id] = u.count; });
 
@@ -258,26 +258,26 @@ exports.getStats = async (req, res) => {
 
 // ─── GET /api/admin/users ──────────────────────────────────────────
 exports.getAllUsers = async (req, res) => {
-  const page    = parseInt(req.query.page)  || 1;
-  const limit   = parseInt(req.query.limit) || 20;
-  const skip    = (page - 1) * limit;
-  const search  = req.query.search || '';
-  const role    = req.query.role;
-  const status  = req.query.status;
-  const sortBy  = req.query.sortBy  || 'createdAt';
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+  const search = req.query.search || '';
+  const role = req.query.role;
+  const status = req.query.status;
+  const sortBy = req.query.sortBy || 'createdAt';
   const sortDir = req.query.sortDir || 'desc';
 
   const filter = {};
   if (search) {
     filter.$or = [
-      { name:  { $regex: search, $options: 'i' } },
+      { name: { $regex: search, $options: 'i' } },
       { email: { $regex: search, $options: 'i' } },
     ];
   }
   if (role && role !== 'all') {
     filter.role = role;
   }
-  
+
   if (status && status !== 'all') {
     if (status === 'active') {
       filter.isActive = true;
@@ -376,7 +376,7 @@ exports.bulkUserAction = async (req, res, next) => {
   // Prevent modifying the super admin in bulk actions
   const safeUserIds = [];
   const usersToInspect = await User.find({ _id: { $in: userIds } });
-  
+
   usersToInspect.forEach(u => {
     if (u.email !== ADMIN_EMAIL) {
       safeUserIds.push(u._id);
@@ -432,9 +432,9 @@ exports.deleteUser = async (req, res, next) => {
 
 // ─── GET /api/admin/interviews ─────────────────────────────────────
 exports.getAllInterviews = async (req, res) => {
-  const page  = parseInt(req.query.page)  || 1;
+  const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
-  const skip  = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
   const [interviews, total] = await Promise.all([
     Interview.find()
@@ -466,16 +466,16 @@ exports.deleteInterview = async (req, res, next) => {
 
 // ─── GET /api/admin/sessions ───────────────────────────────────────
 exports.getAllSessions = async (req, res) => {
-  const page  = parseInt(req.query.page)  || 1;
+  const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
-  const skip  = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
   const [sessions, total] = await Promise.all([
     Session.find()
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
-      .populate({ path: 'userId',      select: 'name email' })
+      .populate({ path: 'userId', select: 'name email' })
       .populate({ path: 'interviewId', select: 'jobTitle company' }),
     Session.countDocuments(),
   ]);
@@ -496,9 +496,9 @@ exports.deleteSession = async (req, res, next) => {
 
 // ─── GET /api/admin/resumes ────────────────────────────────────────
 exports.getAllResumes = async (req, res) => {
-  const page  = parseInt(req.query.page)  || 1;
+  const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
-  const skip  = (page - 1) * limit;
+  const skip = (page - 1) * limit;
 
   const [resumes, total] = await Promise.all([
     Resume.find()

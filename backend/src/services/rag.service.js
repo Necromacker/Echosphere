@@ -1,7 +1,35 @@
-const { OpenAIEmbeddings } = require('@langchain/openai');
 const { chunkResumeAndJD } = require('./chunking.service');
 const { normalizeChunks } = require('../utils/normalizer');
 const { optimizeQuery } = require('./optimizer.service');
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Open-Source Local Embeddings Pipeline (all-MiniLM-L6-v2 via ONNX runtime)
+//  Completely free, runs 100% locally, no API key required.
+// ─────────────────────────────────────────────────────────────────────────────
+let pipelinePromise = null;
+const getEmbeddingPipeline = async () => {
+  if (!pipelinePromise) {
+    const { pipeline } = await import('@xenova/transformers');
+    pipelinePromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+  }
+  return pipelinePromise;
+};
+
+const embedText = async (text) => {
+  const extractor = await getEmbeddingPipeline();
+  const output = await extractor(text, { pooling: 'mean', normalize: true });
+  return Array.from(output.data);
+};
+
+const embedDocuments = async (documents) => {
+  const extractor = await getEmbeddingPipeline();
+  const vectors = [];
+  for (const doc of documents) {
+    const output = await extractor(doc, { pooling: 'mean', normalize: true });
+    vectors.push(Array.from(output.data));
+  }
+  return vectors;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Cosine Similarity (pure Node.js – no native FAISS needed on Windows)
@@ -28,16 +56,16 @@ const buildSemanticChunks = (resumeText, jdText) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Step 2 – Embedding Pipeline (in-memory vector store)
-//  Each chunk is embedded preserving its metadata.
+//  Uses local open-source embeddings (all-MiniLM-L6-v2)
 // ─────────────────────────────────────────────────────────────────────────────
 const createAndStoreEmbeddings = async (chunks) => {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY is missing. Required for embedding generation.');
-  }
+  const embeddingsClient = {
+    embedQuery: async (query) => embedText(query),
+    embedDocuments: async (docs) => embedDocuments(docs),
+  };
 
-  const embeddingsClient = new OpenAIEmbeddings({ modelName: 'text-embedding-3-small' });
-  const chunkTexts       = chunks.map((c) => c.content);
-  const chunkVectors     = await embeddingsClient.embedDocuments(chunkTexts);
+  const chunkTexts   = chunks.map((c) => c.content);
+  const chunkVectors = await embeddingsClient.embedDocuments(chunkTexts);
 
   // Return in-memory store: chunks retain full { content, metadata }
   return { embeddingsClient, chunks, chunkVectors };

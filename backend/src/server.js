@@ -20,17 +20,12 @@ const mongoose = require('mongoose');
 const PORT = process.env.PORT || 5000;
 
 // ─── Start HTTP server ─────────────────────────────────────────────
-const { initSyncScheduler } = require('./services/jobSyncScheduler');
-const { initCleanupScheduler } = require('./services/jobCleanupService');
 const { connect: connectRedis } = require('./config/redis');
 
 const server = app.listen(PORT, async () => {
   logger.info(`🚀 Server running in [${process.env.NODE_ENV}] mode on port ${PORT}`);
   // Connect to Redis on server startup
   await connectRedis();
-  // Start the background services
-  initSyncScheduler();
-  initCleanupScheduler();
 });
 
 // Initialize WebSocket for real-time AI interviews
