@@ -6,6 +6,5 @@
  *   import { AdminAuthProvider, useAdminAuth }                          from '@/context';
  */
 
-export { AuthContext,      AuthProvider,      useAuthContext } from './AuthContext';
 export { AppContext,       AppProvider,       useAppContext  } from './AppContext';
 export { AdminAuthContext, AdminAuthProvider, useAdminAuth   } from './AdminAuthContext';

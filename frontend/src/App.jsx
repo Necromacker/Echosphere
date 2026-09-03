@@ -13,21 +13,16 @@
 
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from '@/hooks';
-import { useAdminAuth } from '@/context';
 
 import ErrorBoundary from '@/components/admin/ErrorBoundary';
 import SuspenseLoader from '@/components/admin/SuspenseLoader';
 
 // ─── Layouts ─────────────────────────────────────────────────────
-import AuthLayout      from '@/layouts/AuthLayout';
 import DashboardLayout from '@/layouts/DashboardLayout';
 import AdminLayout     from '@/layouts/AdminLayout';
 
 // ─── Pages ───────────────────────────────────────────────────────
 import LandingPage          from '@/pages/LandingPage';
-import LoginPage            from '@/pages/auth/LoginPage';
-import RegisterPage         from '@/pages/auth/RegisterPage';
 import DashboardPage        from '@/pages/dashboard/DashboardPage';
 import NewInterviewPage     from '@/pages/interview/NewInterviewPage';
 import InterviewListPage    from '@/pages/interview/InterviewListPage';
@@ -83,18 +78,6 @@ export default function App() {
       {/* ── Public ──────────────────────────────── */}
       <Route path="/" element={<LandingPage />} />
 
-      {/* ── Guest-only (auth) ────────────────────── */}
-      <Route element={<AuthLayout />}>
-        <Route
-          path="/login"
-          element={<GuestRoute><LoginPage /></GuestRoute>}
-        />
-        <Route
-          path="/register"
-          element={<GuestRoute><RegisterPage /></GuestRoute>}
-        />
-      </Route>
-
       {/* ── Admin Login (guest-only for admins) ──── */}
       <Route
         path="/admin/login"
@@ -137,7 +120,7 @@ export default function App() {
         <Route path="/admin/logs"         element={<AdminPermissionRoute permission="view:logs"><AdminLogsPage /></AdminPermissionRoute>} />
       </Route>
 
-      {/* ── Protected (dashboard) ────────────────── */}
+      {/* ── Anonymous (dashboard) ────────────────── */}
       <Route
         element={
           <ProtectedRoute>

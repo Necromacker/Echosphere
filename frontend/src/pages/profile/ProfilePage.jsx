@@ -3,11 +3,10 @@ import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
 import { User, Mail, Lock, Save, Loader2, CheckCircle } from 'lucide-react';
 import { userAPI } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
-  const { user, updateUser } = useAuthStore();
+  const [user, setUser] = useState({ name: 'Guest Candidate', email: '' });
   const [saving, setSaving] = useState(false);
   const [savingPwd, setSavingPwd] = useState(false);
 
@@ -25,7 +24,7 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const { data: res } = await userAPI.updateProfile({ name: data.name });
-      updateUser({ name: res.user.name });
+      setUser((current) => ({ ...current, name: res.user.name }));
       toast.success('Profile updated!');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Update failed');

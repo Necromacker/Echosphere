@@ -14,10 +14,6 @@ export const ROUTES = {
   // Public
   HOME:     '/',
 
-  // Auth
-  LOGIN:    '/login',
-  REGISTER: '/register',
-
   // App
   DASHBOARD:          '/dashboard',
   INTERVIEWS:         '/interviews',

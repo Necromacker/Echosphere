@@ -1,37 +1,24 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
   BrainCircuit, LayoutDashboard, MessageSquarePlus,
-  ClipboardList, FileText, History, User, LogOut, X
+  ClipboardList, FileText, X
 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
-import toast from 'react-hot-toast';
 
 const NAV_ITEMS = [
   { to: '/dashboard',   icon: LayoutDashboard,   label: 'Dashboard' },
   { to: '/interviews',  icon: ClipboardList,      label: 'Interviews' },
   { to: '/interviews/new', icon: MessageSquarePlus, label: 'New Interview' },
-  { to: '/sessions',    icon: History,            label: 'History' },
-  { to: '/resumes',     icon: FileText,           label: 'Resumes' },
-  { to: '/profile',     icon: User,               label: 'Profile' },
+  { to: '/resumes',     icon: FileText,            label: 'Resume' },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout } = useAuthStore();
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    logout();
-    toast.success('Session refreshed');
-    navigate('/dashboard');
-  };
-
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-surface-card border-r border-surface-border">
-        <SidebarContent user={user} onLogout={handleLogout} />
+      <aside className="hidden lg:flex w-full skillora-sidebar skillora-floating-panel">
+        <SidebarContent horizontal />
       </aside>
 
       {/* Mobile sidebar */}
@@ -42,7 +29,7 @@ export default function Sidebar({ isOpen, onClose }) {
             animate={{ x: 0 }}
             exit={{ x: -280 }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed left-0 top-0 z-30 h-full w-72 bg-surface-card border-r border-surface-border flex flex-col lg:hidden"
+            className="fixed left-4 top-4 z-30 h-[calc(100%-2rem)] w-72 skillora-sidebar skillora-floating-panel flex flex-col lg:hidden"
           >
             <button
               onClick={onClose}
@@ -50,7 +37,7 @@ export default function Sidebar({ isOpen, onClose }) {
             >
               <X className="w-5 h-5" />
             </button>
-            <SidebarContent user={user} onLogout={handleLogout} onNavClick={onClose} />
+            <SidebarContent onNavClick={onClose} />
           </motion.aside>
         )}
       </AnimatePresence>
@@ -58,19 +45,19 @@ export default function Sidebar({ isOpen, onClose }) {
   );
 }
 
-function SidebarContent({ user, onLogout, onNavClick }) {
+function SidebarContent({ onNavClick, horizontal = false }) {
   return (
-    <div className="flex flex-col h-full">
+    <div className={horizontal ? 'flex w-full items-center gap-6 px-5' : 'flex h-full flex-col'}>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-6 py-6 border-b border-surface-border">
-        <div className="p-2 bg-gradient-brand rounded-xl">
-          <BrainCircuit className="w-5 h-5 text-white" />
+      <div className={horizontal ? 'flex shrink-0 items-center gap-3 py-3' : 'flex items-center gap-3 border-b border-black/10 px-6 py-6'}>
+        <div className="skillora-mark">
+          <BrainCircuit className="w-5 h-5 text-[#173500]" />
         </div>
-        <span className="font-display font-bold text-lg gradient-text">InterviewAI</span>
+        <span className="font-display font-bold text-lg text-[#173500]">Skillora</span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <nav className={horizontal ? 'flex min-w-0 flex-1 items-center justify-center gap-1 overflow-x-auto py-2' : 'flex flex-1 space-y-1 overflow-y-auto px-4 py-6'}>
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
@@ -79,16 +66,18 @@ function SidebarContent({ user, onLogout, onNavClick }) {
             end={to === '/dashboard'}
             className={({ isActive }) =>
               clsx(
-                'flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-150',
+                horizontal
+                  ? 'flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150'
+                  : 'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-150',
                 isActive
-                  ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-surface-hover'
+                  ? 'bg-[#e8f24c] text-[#173500] border border-[#173500]/10'
+                  : 'text-[#52604a] hover:text-[#173500] hover:bg-black/5'
               )
             }
           >
             {({ isActive }) => (
               <>
-                <Icon className={clsx('w-5 h-5', isActive ? 'text-brand-400' : '')} />
+                <Icon className={clsx('w-5 h-5', isActive ? 'text-[#173500]' : '')} />
                 <span className="flex-1">{label}</span>
               </>
             )}
@@ -96,22 +85,6 @@ function SidebarContent({ user, onLogout, onNavClick }) {
         ))}
       </nav>
 
-      {/* User */}
-      <div className="px-4 py-4 border-t border-surface-border">
-        <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="w-9 h-9 rounded-full bg-gradient-brand flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            {user?.name?.charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user?.name}</p>
-            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-          </div>
-        </div>
-        <button onClick={onLogout} className="btn-ghost w-full text-red-400 hover:text-red-300 hover:bg-red-500/10">
-          <LogOut className="w-4 h-4" />
-          Sign Out
-        </button>
-      </div>
     </div>
   );
 }

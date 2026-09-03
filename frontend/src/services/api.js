@@ -1,10 +1,5 @@
 import api from '@/lib/axios';
 
-// ── Auth ───────────────────────────────────────────────────────────
-export const authAPI = {
-  getMe: () => api.get('/auth/me'),
-};
-
 // ── User ───────────────────────────────────────────────────────────
 export const userAPI = {
   getProfile: () => api.get('/users/profile'),

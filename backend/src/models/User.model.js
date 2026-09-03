@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema(
   {
@@ -18,12 +17,6 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email'],
     },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters'],
-      select: false,
-    },
     role: {
       type: String,
       enum: ['candidate', 'support', 'content_manager', 'admin', 'super_admin'],
@@ -37,10 +30,6 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    isBanned: {
-      type: Boolean,
-      default: false,
-    },
     credits: {
       type: Number,
       default: 10,
@@ -49,18 +38,9 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    lastLogin: {
-      type: Date,
-      default: null,
-    },
     totalSessions: {
       type: Number,
       default: 0,
-    },
-    passwordChangedAt: Date,
-    refreshToken: {
-      type: String,
-      select: false,
     },
   },
   {
@@ -71,36 +51,10 @@ const userSchema = new mongoose.Schema(
 );
 
 // ─── Virtuals ──────────────────────────────────────────────────────
-userSchema.virtual('resumes', {
-  ref: 'Resume',
-  localField: '_id',
-  foreignField: 'userId',
-});
-
 userSchema.virtual('sessions', {
   ref: 'Session',
   localField: '_id',
   foreignField: 'userId',
 });
-
-// ─── Pre-save Hook: Hash Password ─────────────────────────────────
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  this.password = await bcrypt.hash(this.password, 12);
-  next();
-});
-
-// ─── Methods ──────────────────────────────────────────────────────
-userSchema.methods.comparePassword = async function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
-userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
-  if (this.passwordChangedAt) {
-    const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
-    return JWTTimestamp < changedTimestamp;
-  }
-  return false;
-};
 
 module.exports = mongoose.model('User', userSchema);

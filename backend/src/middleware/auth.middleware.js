@@ -1,4 +1,3 @@
-const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const User = require('../models/User.model');
 const AppError = require('../utils/AppError');
@@ -26,28 +25,8 @@ const getDefaultUser = async () => {
   return user;
 };
 
-// ─── Protect Route (verify access token or fallback to default user) ─
+// ─── Anonymous candidate identity ──────────────────────────────────
 exports.protect = async (req, res, next) => {
-  let token;
-
-  if (req.headers.authorization?.startsWith('Bearer ')) {
-    token = req.headers.authorization.split(' ')[1];
-  }
-
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('+passwordChangedAt');
-      if (user && user.isActive && !user.isBanned) {
-        req.user = user;
-        return next();
-      }
-    } catch {
-      // If token is invalid or expired, continue to fallback
-    }
-  }
-
-  // Provide default user session so all features work without login
   try {
     req.user = await getDefaultUser();
     return next();

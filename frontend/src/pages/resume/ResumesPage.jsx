@@ -311,7 +311,7 @@ export default function ResumesPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+    <div className="skillora-page max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div>
         <h2 className="text-2xl font-display font-bold text-white">My Resumes</h2>
         <p className="text-slate-400 mt-1">Upload your resume so AI can personalise your interview questions.</p>
@@ -363,10 +363,6 @@ export default function ResumesPage() {
           <p className="text-slate-400 text-sm">{resumes.length} resume{resumes.length !== 1 ? 's' : ''}</p>
           <AnimatePresence>
             {resumes.map((resume) => {
-              const ps    = PARSE_STATUS[resume.parseStatus] || PARSE_STATUS.pending;
-              const PsIcon = ps.icon;
-              const isOpen = expanded === resume._id;
-
               return (
                 <motion.div
                   key={resume._id}
@@ -378,61 +374,18 @@ export default function ResumesPage() {
                   {/* Header row */}
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-start gap-4 min-w-0">
-                      <div className={`p-2.5 rounded-xl flex-shrink-0 ${resume.isDefault ? 'bg-amber-600/20' : 'bg-brand-600/20'}`}>
-                        <FileText className={`w-5 h-5 ${resume.isDefault ? 'text-amber-400' : 'text-brand-400'}`} />
+                      <div className="rounded-xl bg-[#e8f24c] p-2.5 flex-shrink-0">
+                        <FileText className="w-5 h-5 text-[#173500]" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <p className="font-medium text-white text-sm truncate">{resume.originalName}</p>
-                          {resume.isDefault && (
-                            <span className="badge bg-amber-600/20 text-amber-300 border-amber-500/30">
-                              <Star className="w-3 h-3" /> Default
-                            </span>
-                          )}
-                          {resume.isParsed && (
-                            <span className="badge bg-emerald-600/20 text-emerald-300 border-emerald-500/30 text-xs">
-                              ✦ AI Parsed
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className={`badge ${ps.cls} flex items-center gap-1`}>
-                            <PsIcon className={`w-3 h-3 ${resume.parseStatus === 'pending' ? 'animate-spin' : ''}`} />
-                            {ps.label}
-                          </span>
-                          {resume.fileSize && (
-                            <span className="text-slate-500">{(resume.fileSize / 1024).toFixed(0)} KB</span>
-                          )}
-                          <span className="text-slate-500">
-                            {new Date(resume.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
+                        <p className="font-medium text-[#173500] text-sm truncate">{resume.originalName}</p>
                       </div>
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      {resume.parseStatus === 'parsed' && (
-                        <button
-                          onClick={() => setExpanded(isOpen ? null : resume._id)}
-                          className="btn-ghost p-2 text-brand-400"
-                          title={isOpen ? 'Collapse' : 'View parsed data'}
-                        >
-                          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                      )}
-                      <a href={`https://docs.google.com/viewer?url=${encodeURIComponent(resume.fileUrl)}`} target="_blank" rel="noreferrer"
-                        className="btn-ghost p-2" title="View file">
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                      {!resume.isDefault && (
-                        <button onClick={() => handleSetDefault(resume._id)}
-                          className="btn-ghost p-2 text-amber-400" title="Set as default">
-                          <Star className="w-4 h-4" />
-                        </button>
-                      )}
                       <button onClick={() => handleDelete(resume._id)} disabled={deleting === resume._id}
-                        className="btn-danger p-2 aspect-square">
+                        className="btn-danger p-2 aspect-square" title="Delete resume">
                         {deleting === resume._id
                           ? <Loader2 className="w-4 h-4 animate-spin" />
                           : <Trash2 className="w-4 h-4" />}
@@ -440,19 +393,6 @@ export default function ResumesPage() {
                     </div>
                   </div>
 
-                  {/* Parsed data panel (expandable) */}
-                  <AnimatePresence>
-                    {isOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <ParsedDataPanel resume={resume} onReparse={handleReparse} />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
                 </motion.div>
               );
             })}

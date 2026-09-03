@@ -48,33 +48,18 @@ export default function InterviewListPage() {
 
   const filtered = interviews.filter(
     (i) =>
-      i.jobTitle?.toLowerCase().includes(search.toLowerCase()) ||
-      i.company?.toLowerCase().includes(search.toLowerCase())
+      i.topic?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="skillora-page space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-display font-bold text-white">My Interviews</h2>
-          <p className="text-slate-400 mt-1">{interviews.length} interview{interviews.length !== 1 ? 's' : ''} created</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 skillora-muted" />
+          <input type="text" placeholder="Search interviews..." className="form-input pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Link to="/interviews/new" className="btn-primary flex-shrink-0">
-          <Plus className="w-4 h-4" /> New Interview
-        </Link>
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search by title or company..."
-          className="form-input pl-10"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <Link to="/interviews/new" className="btn-primary flex-shrink-0"><Plus className="w-4 h-4" /> New Interview</Link>
       </div>
 
       {/* List */}
@@ -124,13 +109,10 @@ export default function InterviewListPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-white">{interview.jobTitle}</h3>
+                        <h3 className="font-semibold text-white">{interview.topic}</h3>
                         <span className={statusInfo.cls}>{statusInfo.label}</span>
                         <span className={genInfo.cls}>{genInfo.label}</span>
                       </div>
-                      {interview.company && (
-                        <p className="text-slate-400 text-sm">{interview.company}</p>
-                      )}
                       <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
                         <span className="capitalize">{interview.experienceLevel} level</span>
                         <span>•</span>

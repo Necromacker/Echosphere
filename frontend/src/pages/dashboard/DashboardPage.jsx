@@ -1,175 +1,83 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  Trophy, ClipboardList, TrendingUp, Star,
-  Plus, ChevronRight, Clock, Building2
+  ArrowUpRight, AudioLines, BarChart3, Check, Mic2, Plus, Target, UsersRound
 } from 'lucide-react';
 import { userAPI } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
-import {
-  RadialBarChart, RadialBar, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid
-} from 'recharts';
 
-const StatCard = ({ icon: Icon, label, value, sub, color }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="card p-6 flex items-start gap-4"
-  >
-    <div className={`p-3 rounded-xl ${color}`}>
-      <Icon className="w-6 h-6" />
-    </div>
-    <div>
-      <p className="text-slate-400 text-sm">{label}</p>
-      <p className="text-3xl font-display font-bold text-white mt-1">{value}</p>
-      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
-    </div>
-  </motion.div>
-);
+const roleCards = [
+  { label: 'Technical', tone: 'bg-[#d9efbf]', icon: BarChart3 },
+  { label: 'Behavioral', tone: 'bg-[#f6d7be]', icon: UsersRound },
+  { label: 'Product', tone: 'bg-[#d5e4f4]', icon: Target },
+];
 
-export default function DashboardPage() {
-  const { user } = useAuthStore();
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    userAPI.getDashboard()
-      .then(({ data }) => setStats(data.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const scoreData = [
-    { name: 'Score', value: stats?.averageScore ?? 0, fill: '#6366f1' },
-  ];
+const Stat = ({ label, value, note, type }) => {
+  const score = Number.parseFloat(value) || 0;
+  const progress = Math.min(100, Math.max(0, score));
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Greeting */}
-      <div className="flex items-center justify-between">
+    <div className="skillora-card relative overflow-hidden rounded-2xl p-5">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-display font-bold text-white">
-            Good day, <span className="gradient-text">{user?.name?.split(' ')[0]}</span> 👋
-          </h2>
-          <p className="text-slate-400 mt-1">Ready to practice? Let&apos;s crush your next interview.</p>
+          <p className="text-xs uppercase tracking-[0.14em] skillora-muted">{label}</p>
+          <p className="mt-3 text-3xl font-display font-bold skillora-ink">{value}</p>
+          <p className="mt-1 text-xs skillora-muted">{note}</p>
         </div>
-        <Link to="/interviews/new" className="btn-primary hidden sm:inline-flex">
-          <Plus className="w-4 h-4" />
-          New Interview
-        </Link>
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          icon={ClipboardList} label="Total Interviews" color="bg-brand-600/20 text-brand-400"
-          value={loading ? '—' : stats?.totalSessions ?? 0}
-          sub="All time sessions"
-        />
-        <StatCard
-          icon={Trophy} label="Completed" color="bg-emerald-600/20 text-emerald-400"
-          value={loading ? '—' : stats?.completedSessions ?? 0}
-          sub="Finished sessions"
-        />
-        <StatCard
-          icon={TrendingUp} label="Avg. Score" color="bg-violet-600/20 text-violet-400"
-          value={loading ? '—' : `${stats?.averageScore ?? 0}%`}
-          sub="Across all sessions"
-        />
-        <StatCard
-          icon={Star} label="Best Score" color="bg-amber-600/20 text-amber-400"
-          value={loading ? '—' : `${stats?.bestScore ?? 0}%`}
-          sub="Personal best"
-        />
-      </div>
-
-      {/* Charts + Recent */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Score Gauge */}
-        <div className="card p-6 flex flex-col items-center justify-center">
-          <h3 className="text-sm font-medium text-slate-400 mb-4">Average Performance</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <RadialBarChart innerRadius="60%" outerRadius="90%" data={scoreData} startAngle={90} endAngle={-270}>
-              <RadialBar background={{ fill: '#2a2a4a' }} dataKey="value" cornerRadius={8} />
-            </RadialBarChart>
-          </ResponsiveContainer>
-          <p className="text-4xl font-display font-bold gradient-text -mt-4">
-            {stats?.averageScore ?? 0}%
-          </p>
-          <p className="text-slate-500 text-xs mt-1">Overall score</p>
-        </div>
-
-        {/* Recent Sessions */}
-        <div className="card p-6 lg:col-span-2">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-white">Recent Sessions</h3>
-            <Link to="/sessions" className="btn-ghost text-xs">View all <ChevronRight className="w-3 h-3" /></Link>
+        {type === 'sessions' ? (
+          <div className="flex h-14 items-end gap-1.5" aria-hidden="true">
+            {[35, 58, 45, 76, 62, 88].map((height, index) => (
+              <span key={height} className="w-2 rounded-t bg-[#173500]" style={{ height: `${height}%`, opacity: 0.3 + index * 0.1 }} />
+            ))}
           </div>
-
-          {!stats?.recentSessions?.length ? (
-            <div className="text-center py-10">
-              <ClipboardList className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-500">No sessions yet</p>
-              <Link to="/interviews/new" className="btn-primary mt-4 inline-flex">Start practicing</Link>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {stats.recentSessions.map((session) => (
-                <Link
-                  key={session._id}
-                  to={`/sessions/${session._id}/results`}
-                  className="flex items-center justify-between p-4 rounded-xl bg-surface hover:bg-surface-hover border border-surface-border transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-brand-600/20 rounded-lg">
-                      <Building2 className="w-4 h-4 text-brand-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{session.interviewId?.jobTitle}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3" />
-                        {new Date(session.createdAt).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`badge ${session.overallScore >= 70 ? 'badge-success' : session.overallScore >= 40 ? 'badge-warning' : 'badge-danger'}`}>
-                      {session.overallScore}%
-                    </span>
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-brand-400 transition-colors" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+        ) : (
+          <svg className="mr-2 h-24 w-24 shrink-0 -rotate-90" viewBox="0 0 42 42" aria-hidden="true">
+            <circle cx="21" cy="21" r="16" fill="none" stroke="#d9efbf" strokeWidth="5" />
+            <circle cx="21" cy="21" r="16" fill="none" stroke="#173500" strokeWidth="5" strokeDasharray={`${progress} ${100 - progress}`} strokeLinecap="round" />
+          </svg>
+        )}
       </div>
-
-      {/* Quick Actions */}
-      <div className="card p-6">
-        <h3 className="font-semibold text-white mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {[
-            { to: '/interviews/new', icon: Plus, label: 'Create Interview', desc: 'Setup a new mock session', color: 'from-brand-600 to-violet-600' },
-            { to: '/resumes', icon: ClipboardList, label: 'Upload Resume', desc: 'Add your latest resume', color: 'from-emerald-600 to-teal-600' },
-            { to: '/sessions', icon: TrendingUp, label: 'View Progress', desc: 'Review past performance', color: 'from-amber-600 to-orange-600' },
-          ].map(({ to, icon: Icon, label, desc, color }) => (
-            <Link key={to} to={to}
-              className="flex items-center gap-4 p-4 rounded-xl bg-surface border border-surface-border hover:border-brand-500/50 hover:bg-surface-hover transition-all group"
-            >
-              <div className={`p-3 rounded-xl bg-gradient-to-br ${color} flex-shrink-0`}>
-                <Icon className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-white">{label}</p>
-                <p className="text-xs text-slate-500">{desc}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+      <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-[#d9efbf]">
+        <div className="h-full rounded-full bg-[#e8f24c]" style={{ width: `${type === 'sessions' ? Math.min(100, score * 10) : progress}%` }} />
       </div>
+    </div>
+  );
+};
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    userAPI.getDashboard().then(({ data }) => setStats(data.data)).catch(() => {});
+  }, []);
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 pb-10 skillora-ink">
+      <section className="relative overflow-hidden rounded-[28px] border border-[#173500]/15 bg-[#f4f0dc] px-6 py-12 sm:px-12 lg:px-16">
+        <div className="absolute right-8 top-8 hidden h-28 w-28 rotate-12 rounded-[45%] border-2 border-[#173500]/20 lg:block" />
+        <div className="relative max-w-3xl">
+          <h2 className="max-w-3xl text-4xl font-display font-bold leading-[0.98] tracking-tight sm:text-6xl">Practice with a panel that <span className="bg-[#e8f24c] px-2">thinks with you.</span></h2>
+          <p className="mt-6 max-w-xl text-base leading-7 skillora-muted">Build confidence through live, interruptible conversations with technical, behavioral, and product interviewers.</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link to="/interviews/new" className="inline-flex items-center gap-2 rounded-lg bg-[#173500] px-5 py-3 text-sm font-semibold text-[#e8f24c] transition-transform hover:-translate-y-0.5"><Plus size={17} /> Start an interview <ArrowUpRight size={16} /></Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        <Stat type="sessions" label="Sessions completed" value={stats?.completedSessions ?? 0} note="Keep the rhythm going" />
+        <Stat type="score" label="Average score" value={`${stats?.averageScore ?? 0}%`} note="Across every practice room" />
+        <Stat type="score" label="Best score" value={`${stats?.bestScore ?? 0}%`} note="Your current personal best" />
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="skillora-card rounded-2xl p-6 sm:p-8">
+          <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] skillora-muted">Your interview panel</p><h3 className="mt-2 text-2xl font-display font-bold">Choose the pressure you need.</h3></div><AudioLines className="skillora-muted" /></div>
+          <div className="mt-7 grid gap-3 sm:grid-cols-3">{roleCards.map(({ label, tone, icon: Icon }) => <Link key={label} to="/interviews/new" className={`${tone} rounded-xl p-4 transition-transform hover:-translate-y-1`}><Icon size={20} /><p className="mt-8 text-sm font-bold">{label}</p><p className="mt-1 text-xs opacity-70">AI interviewer</p></Link>)}</div>
+          <div className="mt-6 flex items-center gap-3 border-t border-[#173500]/10 pt-5 text-sm skillora-muted"><Check size={16} className="text-[#4b791e]" /> Mix roles to simulate a real interview panel</div>
+        </div>
+        <div className="rounded-2xl bg-[#173500] p-6 text-[#f7f5e9] sm:p-8"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#b7c49b]">Quick start</p><Mic2 size={21} className="text-[#e8f24c]" /></div><h3 className="mt-8 max-w-xs text-3xl font-display font-bold leading-tight">Your next answer is one conversation away.</h3><p className="mt-4 text-sm leading-6 text-[#c6d0b2]">Start with a role, answer out loud, and let the panel adapt to what you say.</p><Link to="/interviews/new" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-[#e8f24c] px-4 py-3 text-sm font-bold text-[#173500] hover:bg-white">Practice now <ArrowUpRight size={16} /></Link></div>
+      </section>
+
     </div>
   );
 }

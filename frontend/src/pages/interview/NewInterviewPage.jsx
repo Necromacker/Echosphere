@@ -93,18 +93,18 @@ export default function NewInterviewPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto animate-fade-in">
+    <div className="skillora-page max-w-2xl mx-auto animate-fade-in">
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
         {STEPS.map((label, i) => (
           <div key={label} className="flex items-center gap-2 flex-1">
             <div className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-all duration-300
-              ${i < step ? 'bg-emerald-500 text-white' : i === step ? 'bg-brand-500 text-white shadow-glow' : 'bg-surface-border text-slate-500'}`}>
+              ${i < step ? 'bg-[#d9efbf] text-[#315711]' : i === step ? 'bg-[#173500] text-[#e8f24c] shadow-[0_4px_0_rgba(23,53,0,0.16)]' : 'bg-[#e7eadc] text-[#75816c]'}`}>
               {i < step ? <Check className="w-4 h-4" /> : i + 1}
             </div>
-            <span className={`text-xs font-medium hidden sm:block ${i === step ? 'text-white' : 'text-slate-500'}`}>{label}</span>
+            <span className={`text-xs font-medium hidden sm:block ${i === step ? 'text-[#173500]' : 'text-[#75816c]'}`}>{label}</span>
             {i < STEPS.length - 1 && (
-              <div className={`flex-1 h-0.5 rounded-full ${i < step ? 'bg-emerald-500' : 'bg-surface-border'}`} />
+              <div className={`flex-1 h-0.5 rounded-full ${i < step ? 'bg-[#a9ce85]' : 'bg-[#d8ddca]'}`} />
             )}
           </div>
         ))}

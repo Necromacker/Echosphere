@@ -18,7 +18,6 @@ const compression = require('compression');
 const errorHandler   = require('./middleware/errorHandler');
 
 // Route Imports
-const authRoutes      = require('./routes/auth.routes');
 const userRoutes      = require('./routes/user.routes');
 const resumeRoutes    = require('./routes/resume.routes');
 const interviewRoutes = require('./routes/interview.routes');
@@ -106,7 +105,6 @@ app.get('/api/health', (_req, res) =>
 );
 
 // ─── API Routes ────────────────────────────────────────────────────
-app.use('/api/auth',       authRoutes);
 app.use('/api/users',      userRoutes);
 app.use('/api/resumes',    resumeRoutes);
 app.use('/api/interviews', interviewRoutes);
