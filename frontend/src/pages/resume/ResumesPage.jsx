@@ -321,23 +321,25 @@ export default function ResumesPage() {
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200
-          ${isDragActive ? 'border-brand-500 bg-brand-600/10' : 'border-surface-border hover:border-brand-500/60 hover:bg-surface-hover'}
+          ${isDragActive
+            ? 'border-[#173500] bg-[#e8f24c]/20'
+            : 'border-[#173500]/25 bg-[#fffef6]/45 hover:border-[#173500]/55 hover:bg-[#e8f24c]/10'}
           ${uploading ? 'opacity-60 cursor-not-allowed' : ''}`}
       >
         <input {...getInputProps()} />
         <div className="flex flex-col items-center gap-3">
           {uploading ? (
-            <Loader2 className="w-10 h-10 text-brand-400 animate-spin" />
+            <Loader2 className="w-10 h-10 text-[#173500] animate-spin" />
           ) : (
-            <div className={`p-4 rounded-2xl ${isDragActive ? 'bg-brand-600/30' : 'bg-surface-border/50'} transition-colors`}>
-              <Upload className={`w-8 h-8 ${isDragActive ? 'text-brand-400' : 'text-slate-500'}`} />
+            <div className={`p-4 rounded-2xl ${isDragActive ? 'bg-[#e8f24c]/70' : 'bg-[#e8f24c]/35'} transition-colors`}>
+              <Upload className="w-8 h-8 text-[#173500]" />
             </div>
           )}
           <div>
             <p className="font-semibold text-white">
               {uploading ? 'Uploading & analysing…' : isDragActive ? 'Drop your resume here' : 'Drag & drop your resume'}
             </p>
-            <p className="text-slate-500 text-sm mt-1">or <span className="text-brand-400">click to browse</span></p>
+            <p className="text-slate-500 text-sm mt-1">or <span className="text-[#4f46e5]">click to browse</span></p>
           </div>
           <p className="text-xs text-slate-600">PDF, DOC, DOCX • Max 5MB</p>
         </div>
@@ -372,8 +374,8 @@ export default function ResumesPage() {
                   className="card p-5"
                 >
                   {/* Header row */}
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-start gap-4 min-w-0">
+                  <div className="flex min-h-10 items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-4">
                       <div className="rounded-xl bg-[#e8f24c] p-2.5 flex-shrink-0">
                         <FileText className="w-5 h-5 text-[#173500]" />
                       </div>

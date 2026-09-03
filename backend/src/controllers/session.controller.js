@@ -273,15 +273,17 @@ exports.getMySessions = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
+  const interviewIds = await Interview.find({ userId: req.user._id }).distinct('_id');
+  const sessionFilter = { userId: req.user._id, interviewId: { $in: interviewIds } };
 
   const [sessions, total] = await Promise.all([
-    Session.find({ userId: req.user._id })
+    Session.find(sessionFilter)
       .sort('-createdAt')
       .skip(skip)
       .limit(limit)
       .populate({ path: 'interviewId', select: 'jobTitle company experienceLevel' })
       .select('-answers'),
-    Session.countDocuments({ userId: req.user._id }),
+    Session.countDocuments(sessionFilter),
   ]);
 
   res.status(200).json({
@@ -299,6 +301,6 @@ exports.getSessionById = async (req, res, next) => {
   const session = await Session.findOne({ _id: req.params.id, userId: req.user._id })
     .populate({ path: 'interviewId', select: 'jobTitle company experienceLevel questions' });
 
-  if (!session) return next(new AppError('Session not found.', 404));
+  if (!session || !session.interviewId) return next(new AppError('Session not found.', 404));
   res.status(200).json({ success: true, session });
 };

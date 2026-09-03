@@ -1,5 +1,6 @@
 const Interview = require('../models/Interview.model');
 const Resume = require('../models/Resume.model');
+const Session = require('../models/Session.model');
 const AppError = require('../utils/AppError');
 const { generateInterviewQuestions } = require('../services/ai.service');
 
@@ -94,13 +95,37 @@ exports.getMyInterviews = async (req, res) => {
     Interview.countDocuments({ userId: req.user._id }),
   ]);
 
+  const interviewIds = interviews.map((interview) => interview._id);
+  const sessions = await Session.find({
+    userId: req.user._id,
+    interviewId: { $in: interviewIds },
+  })
+    .sort('-createdAt')
+    .select('interviewId status overallScore createdAt');
+
+  const latestSessions = new Map();
+  const latestCompletedSessions = new Map();
+  sessions.forEach((session) => {
+    const interviewId = session.interviewId.toString();
+    if (!latestSessions.has(interviewId)) latestSessions.set(interviewId, session);
+    if (session.status === 'completed' && !latestCompletedSessions.has(interviewId)) {
+      latestCompletedSessions.set(interviewId, session);
+    }
+  });
+
+  const interviewsWithSessions = interviews.map((interview) => ({
+    ...interview.toObject(),
+    latestSession: latestSessions.get(interview._id.toString()) || null,
+    lastCompletedSession: latestCompletedSessions.get(interview._id.toString()) || null,
+  }));
+
   res.status(200).json({
     success: true,
     count: interviews.length,
     total,
     page,
     totalPages: Math.ceil(total / limit),
-    interviews,
+    interviews: interviewsWithSessions,
   });
 };
 
@@ -115,7 +140,13 @@ exports.getInterviewById = async (req, res, next) => {
 
 // ─── DELETE /api/interviews/:id ───────────────────────────────────
 exports.deleteInterview = async (req, res, next) => {
-  const interview = await Interview.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+  const interview = await Interview.findOne({ _id: req.params.id, userId: req.user._id });
   if (!interview) return next(new AppError('Interview not found.', 404));
-  res.status(200).json({ success: true, message: 'Interview deleted.' });
+
+  await Promise.all([
+    Session.deleteMany({ interviewId: interview._id, userId: req.user._id }),
+    interview.deleteOne(),
+  ]);
+
+  res.status(200).json({ success: true, message: 'Interview and its sessions deleted.' });
 };

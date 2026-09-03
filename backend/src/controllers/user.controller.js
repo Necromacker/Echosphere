@@ -1,5 +1,6 @@
 const User = require('../models/User.model');
 const Session = require('../models/Session.model');
+const Interview = require('../models/Interview.model');
 const AppError = require('../utils/AppError');
 
 // ─── GET /api/users/profile ───────────────────────────────────────
@@ -45,18 +46,20 @@ exports.changePassword = async (req, res, next) => {
 // ─── GET /api/users/dashboard ─────────────────────────────────────
 exports.getDashboard = async (req, res) => {
   const userId = req.user._id;
+  const interviewIds = await Interview.find({ userId }).distinct('_id');
+  const sessionFilter = { userId, interviewId: { $in: interviewIds } };
 
   const [totalSessions, completedSessions, recentSessions] = await Promise.all([
-    Session.countDocuments({ userId }),
-    Session.countDocuments({ userId, status: 'completed' }),
-    Session.find({ userId, status: 'completed' })
+    Session.countDocuments(sessionFilter),
+    Session.countDocuments({ ...sessionFilter, status: 'completed' }),
+    Session.find({ ...sessionFilter, status: 'completed' })
       .sort('-createdAt')
       .limit(5)
       .populate({ path: 'interviewId', select: 'jobTitle company experienceLevel' }),
   ]);
 
   const scoreAgg = await Session.aggregate([
-    { $match: { userId, status: 'completed', overallScore: { $ne: null } } },
+    { $match: { ...sessionFilter, status: 'completed', overallScore: { $ne: null } } },
     { $group: { _id: null, avgScore: { $avg: '$overallScore' }, maxScore: { $max: '$overallScore' } } },
   ]);
 

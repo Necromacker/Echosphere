@@ -48,6 +48,9 @@ const generateInterviewQuestions = async ({
   const responseShape = selectedTypes
     .map((type) => `  "${type}": [{ "questionText": "...", "difficulty": "easy|medium|hard", "expectedKeywords": ["keyword1", "keyword2"] }]`)
     .join(',\n');
+  const firstQuestionRule = resumeText?.trim()
+    ? `- FIRST QUESTION REQUIREMENT: The first question must be based on one specific project, role, achievement, responsibility, or skill from the candidate's resume in the retrieved context. Make it relevant to the job, but do not invent resume details.`
+    : `- No resume is linked, so begin with a role-relevant question based on the job description.`;
 
   const systemPrompt = `You are an expert technical interviewer and HR specialist.
 You create precise, challenging, and role-relevant interview questions solely based on the provided context retrieved from RAG chunks.
@@ -72,6 +75,7 @@ Rules:
 - If a technology or experience is not mentioned in the context, DO NOT generate a question about it.
 - Questions must match candidate skill level (${experienceLevel}).
 - Avoid generic questions.
+${firstQuestionRule}
 - Behavioral questions should use STAR method format.
 - Technical questions should test real-world problem solving.
 - Situational, HR, and culture_fit questions should match their selected category.
@@ -684,7 +688,6 @@ module.exports = {
   generateTopicQuestions,
   generateQuestionsDirect,
 };
-
 
 
 

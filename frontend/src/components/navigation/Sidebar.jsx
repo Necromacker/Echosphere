@@ -63,7 +63,7 @@ function SidebarContent({ onNavClick, horizontal = false }) {
             key={to}
             to={to}
             onClick={onNavClick}
-            end={to === '/dashboard'}
+            end
             className={({ isActive }) =>
               clsx(
                 horizontal

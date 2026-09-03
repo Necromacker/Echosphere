@@ -8,12 +8,12 @@
  *  4. Handle OS-level process signals (SIGTERM, unhandledRejection)
  */
 
-require('dotenv').config({ override: true });
+require('dotenv').config({ override: true }); 
 
 const app = require('./app');
 const logger = require('./config/logger');
 const connectDB = require('./config/db');
-
+ 
 const PORT = process.env.PORT || 5000;
 
 const { connect: connectRedis } = require('./config/redis');

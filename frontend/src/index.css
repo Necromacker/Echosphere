@@ -246,6 +246,10 @@
   color: #66745e !important;
 }
 
+.skillora-page .text-slate-300 {
+  color: #52604a !important;
+}
+
 .skillora-page .form-input,
 .skillora-page .form-textarea,
 .skillora-page .form-select {
@@ -289,4 +293,17 @@
   background: #e8f24c !important;
   border-color: rgba(23, 53, 0, 0.18) !important;
   color: #173500 !important;
+}
+
+/* Resume upload panel — retain the light Skillora palette instead of the
+   legacy dark surface tokens used elsewhere in the application. */
+.skillora-page .btn-danger {
+  background: #ffe1dc !important;
+  border-color: #ffaaa2 !important;
+  color: #fb7169 !important;
+}
+
+.skillora-page .btn-danger:hover {
+  background: #ffd1ca !important;
+  color: #e85750 !important;
 }

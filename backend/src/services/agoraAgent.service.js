@@ -110,7 +110,8 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
   - If the candidate says they do not know, has no answer, or is having difficulty, do not ask a follow-up. Tell them to click 'Next Question' when they are ready.
 
 3. Step 3 (Listen & Check Expected Keywords):
-   - Listen attentively while the candidate speaks their answer.
+   - Let the candidate speak without interrupting them. Wait until they have been silent for about 3 seconds before responding.
+   - Then respond naturally to what they said: acknowledge their answer, assess it against the expected keywords, and ask a follow-up only when needed.
    - Compare what they said against the Expected Keywords (${q1Keywords}).
    - IF KEYWORDS ARE MISSING:
      Ask EXACTLY 1 concise follow-up question prompting them on the missing concept.
@@ -203,7 +204,8 @@ DO NOT ask or talk about any other question. Focus exclusively on Question ${que
   - If the candidate says they do not know, has no answer, or is having difficulty, do not ask a follow-up. Tell them to click 'Next Question' when they are ready.
 
 3. Step 3 (Listen & Check Expected Keywords):
-   - Listen attentively while the candidate speaks their answer.
+   - Let the candidate speak without interrupting them. Wait until they have been silent for about 3 seconds before responding.
+   - Then respond naturally to what they said: acknowledge their answer, assess it against the expected keywords, and ask a follow-up only when needed.
    - Compare what they said against the Expected Keywords (${keywords}).
    - IF KEYWORDS ARE MISSING:
      Ask EXACTLY 1 concise follow-up question prompting them on the missing concept.

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Briefcase, Clock, Trash2, Play, ChevronRight, Search, Filter } from 'lucide-react';
+import { Plus, Briefcase, Clock, Trash2, RotateCcw, BarChart3, Search } from 'lucide-react';
 import { interviewAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -48,7 +48,7 @@ export default function InterviewListPage() {
 
   const filtered = interviews.filter(
     (i) =>
-      i.topic?.toLowerCase().includes(search.toLowerCase())
+      i.jobTitle?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -92,7 +92,7 @@ export default function InterviewListPage() {
           {filtered.map((interview, idx) => {
             const statusInfo = STATUS_MAP[interview.status] || STATUS_MAP.draft;
             const genInfo = GEN_MAP[interview.generationStatus] || GEN_MAP.pending;
-            const canStart = interview.status === 'ready';
+            const completedSession = interview.lastCompletedSession;
 
             return (
               <motion.div
@@ -109,7 +109,7 @@ export default function InterviewListPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-white">{interview.topic}</h3>
+                        <h3 className="font-semibold text-white">{interview.jobTitle}</h3>
                         <span className={statusInfo.cls}>{statusInfo.label}</span>
                         <span className={genInfo.cls}>{genInfo.label}</span>
                       </div>
@@ -127,22 +127,35 @@ export default function InterviewListPage() {
                   </div>
 
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    {completedSession ? (
+                      <Link
+                        to={`/sessions/${completedSession._id}/results`}
+                        className="btn-primary px-4 py-2"
+                      >
+                        <BarChart3 className="w-4 h-4" /> View Score · {completedSession.overallScore ?? 0}%
+                      </Link>
+                    ) : (
+                      <span className="rounded-xl border border-[#173500]/15 bg-[#f2f4e6] px-4 py-2 text-sm font-semibold text-[#66745e]">
+                        Score pending
+                      </span>
+                    )}
+                    <Link
+                      to={`/interviews/${interview._id}/session`}
+                      aria-label={`Retry ${interview.jobTitle} interview`}
+                      title="Retry interview"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#173500]/25 bg-[#fffef6] text-[#173500] transition-colors hover:bg-[#e8f24c]"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Link>
                     <button
                       onClick={() => handleDelete(interview._id)}
                       disabled={deleting === interview._id}
-                      className="btn-danger p-2 aspect-square"
+                      aria-label={`Delete ${interview.jobTitle} interview`}
+                      title="Delete interview"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d95d48]/35 bg-[#fffef6] text-[#d95d48] transition-colors hover:bg-[#fbe5df] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    {canStart ? (
-                      <Link to={`/interviews/${interview._id}/session`} className="btn-primary">
-                        <Play className="w-4 h-4" /> Start
-                      </Link>
-                    ) : (
-                      <Link to={`/interviews/${interview._id}/session`} className="btn-secondary">
-                        View <ChevronRight className="w-4 h-4" />
-                      </Link>
-                    )}
                   </div>
                 </div>
               </motion.div>

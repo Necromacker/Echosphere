@@ -119,7 +119,7 @@ export default function NewInterviewPage() {
               className="card p-8 space-y-5"
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-brand-600/20 rounded-xl"><Briefcase className="w-5 h-5 text-brand-400" /></div>
+                <div className="p-2 bg-[#e8f24c] rounded-xl"><Briefcase className="w-5 h-5 text-[#173500]" /></div>
                 <h3 className="text-xl font-display font-bold text-white">Job Details</h3>
               </div>
 
@@ -161,7 +161,7 @@ export default function NewInterviewPage() {
               className="card p-8 space-y-6"
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-violet-600/20 rounded-xl"><Sliders className="w-5 h-5 text-violet-400" /></div>
+                <div className="p-2 bg-[#e8f24c] rounded-xl"><Sliders className="w-5 h-5 text-[#173500]" /></div>
                 <h3 className="text-xl font-display font-bold text-white">Preferences</h3>
               </div>
 
@@ -173,8 +173,8 @@ export default function NewInterviewPage() {
                       onClick={() => setExperienceLevel(value)}
                       className={`p-3 rounded-xl border text-left transition-all duration-200 ${
                         experienceLevel === value
-                          ? 'border-brand-500 bg-brand-600/20 text-white'
-                          : 'border-surface-border bg-surface hover:border-slate-500 text-slate-400'
+                          ? 'border-[#173500] bg-[#e8f24c]/25 text-[#173500]'
+                          : 'border-[#173500]/20 bg-[#fffef6] hover:border-[#173500]/50 text-[#66745e]'
                       }`}
                     >
                       <p className="text-sm font-semibold">{label}</p>
@@ -192,8 +192,8 @@ export default function NewInterviewPage() {
                       onClick={() => toggleType(value)}
                       className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
                         selectedTypes.includes(value)
-                          ? 'bg-brand-600/30 border-brand-500 text-brand-300'
-                          : 'border-surface-border text-slate-400 hover:border-slate-500'
+                          ? 'bg-[#e8f24c]/45 border-[#173500] text-[#173500]'
+                          : 'border-[#173500]/35 bg-[#fffef6] text-[#66745e] hover:border-[#173500]'
                       }`}
                     >
                       {selectedTypes.includes(value) && <Check className="w-3 h-3 inline mr-1" />}
@@ -204,8 +204,8 @@ export default function NewInterviewPage() {
               </div>
 
               <div>
-                <label className="form-label">Number of Questions: <span className="text-brand-400 font-bold">{numberOfQuestions}</span></label>
-                <input type="range" min="3" max="20" step="1" className="w-full accent-brand-500 mt-2"
+                <label className="form-label">Number of Questions: <span className="text-[#173500] font-bold">{numberOfQuestions}</span></label>
+                <input type="range" min="3" max="20" step="1" className="w-full accent-[#173500] mt-2"
                   {...register('numberOfQuestions', { valueAsNumber: true })} />
                 <div className="flex justify-between text-xs text-slate-500 mt-1"><span>3</span><span>20</span></div>
               </div>
@@ -219,44 +219,44 @@ export default function NewInterviewPage() {
               className="card p-8 space-y-4"
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-emerald-600/20 rounded-xl"><FileText className="w-5 h-5 text-emerald-400" /></div>
+                <div className="p-2 bg-[#e8f24c] rounded-xl"><FileText className="w-5 h-5 text-[#173500]" /></div>
                 <h3 className="text-xl font-display font-bold text-white">Select Resume <span className="text-slate-500 text-sm font-normal">(optional)</span></h3>
               </div>
-              <p className="text-slate-400 text-sm">Linking a resume helps AI generate more personalized questions based on your experience.</p>
 
               <div className="space-y-2">
                 <button type="button"
                   onClick={() => setSelectedResume(null)}
                   className={`w-full p-4 rounded-xl border text-left transition-all ${
-                    !selectedResume ? 'border-brand-500 bg-brand-600/20' : 'border-surface-border bg-surface hover:border-slate-500'
+                    !selectedResume
+                      ? 'border-[#173500] bg-[#e8f24c]/20 text-[#173500]'
+                      : 'border-[#173500]/20 bg-[#fffef6] hover:border-[#173500]/50'
                   }`}
                 >
                   <p className="text-sm font-medium text-white">No resume — generic questions</p>
-                  <p className="text-xs text-slate-500 mt-1">AI generates questions based on job description only</p>
+                  <p className="mt-1 text-xs text-slate-500">AI generates questions based on job description only</p>
                 </button>
 
                 {resumes.map((r) => (
                   <button key={r._id} type="button"
                     onClick={() => setSelectedResume(r._id)}
                     className={`w-full p-4 rounded-xl border text-left transition-all ${
-                      selectedResume === r._id ? 'border-brand-500 bg-brand-600/20' : 'border-surface-border bg-surface hover:border-slate-500'
+                      selectedResume === r._id
+                        ? 'border-[#173500] bg-[#e8f24c]/20 text-[#173500]'
+                        : 'border-[#173500]/20 bg-[#fffef6] hover:border-[#173500]/50'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className={`w-5 h-5 flex-shrink-0 ${selectedResume === r._id ? 'text-brand-400' : 'text-slate-500'}`} />
+                      <FileText className={`w-5 h-5 flex-shrink-0 ${selectedResume === r._id ? 'text-[#173500]' : 'text-[#66745e]'}`} />
                       <div>
                         <p className="text-sm font-medium text-white">{r.originalName}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {r.parseStatus === 'parsed' ? '✅ Text extracted' : r.parseStatus === 'failed' ? '⚠️ Parse failed' : '⏳ Pending'}
-                          {r.isDefault && <span className="ml-2 badge-brand badge text-xs">Default</span>}
-                        </p>
+                        {r.isDefault && <span className="mt-1 badge-brand badge text-xs">Default</span>}
                       </div>
                     </div>
                   </button>
                 ))}
 
                 {resumes.length === 0 && (
-                  <p className="text-sm text-slate-500 text-center py-4">No resumes uploaded yet. <a href="/resumes" className="text-brand-400">Upload one →</a></p>
+                  <p className="text-sm text-slate-500 text-center py-4">No resumes uploaded yet. <a href="/resumes" className="text-[#4f46e5]">Upload one →</a></p>
                 )}
               </div>
             </motion.div>
@@ -269,7 +269,7 @@ export default function NewInterviewPage() {
               className="card p-8 space-y-5"
             >
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-amber-600/20 rounded-xl"><Sparkles className="w-5 h-5 text-amber-400" /></div>
+                <div className="p-2 bg-[#e8f24c] rounded-xl"><Sparkles className="w-5 h-5 text-[#173500]" /></div>
                 <h3 className="text-xl font-display font-bold text-white">Review & Generate</h3>
               </div>
 
@@ -281,14 +281,14 @@ export default function NewInterviewPage() {
                 { label: 'Number of Questions', value: numberOfQuestions },
                 { label: 'Resume', value: resumes.find((r) => r._id === selectedResume)?.originalName || 'None selected' },
               ].map(({ label, value }) => (
-                <div key={label} className="flex justify-between items-start py-3 border-b border-surface-border last:border-0">
+                <div key={label} className="flex justify-between items-start py-3 border-b border-[#173500]/15 last:border-0">
                   <span className="text-slate-400 text-sm">{label}</span>
                   <span className="text-white text-sm font-medium text-right max-w-xs">{value}</span>
                 </div>
               ))}
 
-              <div className="p-4 rounded-xl bg-brand-600/10 border border-brand-500/30">
-                <p className="text-brand-300 text-sm">
+              <div className="p-4 rounded-xl bg-[#e8f24c]/20 border border-[#173500]/20">
+                <p className="text-[#315711] text-sm">
                   🤖 AI will generate <strong>{numberOfQuestions}</strong> personalized questions using Groq AI (Llama-3). This usually takes 5–15 seconds.
                 </p>
               </div>

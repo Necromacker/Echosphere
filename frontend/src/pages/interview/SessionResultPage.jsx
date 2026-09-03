@@ -3,12 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Trophy, TrendingUp, ThumbsUp, Target, Lightbulb,
-  BookOpen, ChevronDown, ChevronUp, CheckCircle, XCircle,
-  RotateCcw, ArrowLeft, Star
+  BookOpen, ChevronDown, ChevronUp, CheckCircle,
+  RotateCcw, ArrowLeft
 } from 'lucide-react';
 import { sessionAPI } from '@/services/api';
 import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis,
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell
 } from 'recharts';
 
@@ -35,25 +34,8 @@ export default function SessionResultPage() {
   if (!session) return <p className="text-slate-400 text-center mt-20">Session not found.</p>;
 
   const score = session.overallScore ?? 0;
-  const scoreColor = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+  const scoreColor = score >= 70 ? '#5f9b3d' : score >= 40 ? '#d8a70a' : '#d95d48';
   const scoreLabel = score >= 70 ? 'Excellent' : score >= 40 ? 'Good' : 'Needs Work';
-
-  // Radar chart data by category
-  const categoryScores = {};
-  session.answers.forEach((a) => {
-    const cat = session.interviewId?.questions?.find(
-      (q) => q._id === a.questionId?.toString()
-    )?.category || 'other';
-    if (!categoryScores[cat]) categoryScores[cat] = { scores: [], name: cat.replace('_', ' ') };
-    if (a.aiScore !== null) categoryScores[cat].scores.push(a.aiScore);
-  });
-
-  const radarData = Object.values(categoryScores).map((c) => ({
-    subject: c.name,
-    score: c.scores.length
-      ? Math.round((c.scores.reduce((a, b) => a + b, 0) / (c.scores.length * 10)) * 100)
-      : 0,
-  }));
 
   const barData = session.answers.map((a, i) => ({
     name: `Q${i + 1}`,
@@ -61,50 +43,74 @@ export default function SessionResultPage() {
   }));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+    <div className="skillora-page max-w-6xl mx-auto space-y-6 animate-fade-in">
       {/* Back */}
       <Link to="/sessions" className="btn-ghost inline-flex">
         <ArrowLeft className="w-4 h-4" /> Back to History
       </Link>
 
-      {/* Score Hero */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="card p-8 text-center bg-gradient-card"
-      >
-        <div className="inline-flex items-center justify-center w-24 h-24 rounded-full border-4 mb-4"
-          style={{ borderColor: scoreColor, boxShadow: `0 0 30px ${scoreColor}40` }}>
-          <span className="text-3xl font-display font-bold" style={{ color: scoreColor }}>{score}%</span>
-        </div>
-        <h2 className="text-2xl font-display font-bold text-white mb-1">{scoreLabel}!</h2>
-        <p className="text-slate-400 mb-4">{session.interviewId?.jobTitle} • {session.answers.length} questions answered</p>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Score Hero */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="card p-8 text-center"
+        >
+          <div className="mb-4 inline-flex h-24 w-24 items-center justify-center rounded-full border-4"
+            style={{ borderColor: scoreColor, boxShadow: `0 0 24px ${scoreColor}26` }}>
+            <span className="font-display text-3xl font-bold" style={{ color: scoreColor }}>{score}%</span>
+          </div>
+          <h2 className="mb-1 font-display text-2xl font-bold text-white">{scoreLabel}!</h2>
+          <p className="mb-5 text-slate-400">{session.interviewId?.jobTitle} • {session.answers.length} questions answered</p>
 
-        {session.overallFeedback && (
-          <p className="text-slate-300 text-sm bg-surface/60 rounded-xl p-4 max-w-2xl mx-auto leading-relaxed">
-            {session.overallFeedback}
-          </p>
-        )}
+          {session.overallFeedback && (
+            <p className="rounded-xl border border-[#173500]/10 bg-[#f2f4e6] p-4 text-sm leading-relaxed text-slate-300">
+              {session.overallFeedback}
+            </p>
+          )}
 
-        <div className="flex items-center justify-center gap-3 mt-6">
-          <Link to="/interviews/new" className="btn-primary">
-            <RotateCcw className="w-4 h-4" /> Practice Again
-          </Link>
-          <Link to="/dashboard" className="btn-secondary">Dashboard</Link>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Link to="/interviews/new" className="btn-primary">
+              <RotateCcw className="w-4 h-4" /> Practice Again
+            </Link>
+            <Link to="/dashboard" className="btn-secondary">Dashboard</Link>
+          </div>
+        </motion.div>
+
+        <div className="card p-6">
+          <h3 className="mb-4 flex items-center gap-2 font-semibold text-white">
+            <TrendingUp className="h-5 w-5 text-[#315711]" /> Score Per Question
+          </h3>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={barData} barSize={28} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+              <XAxis dataKey="name" tick={{ fill: '#66745e', fontSize: 11 }} axisLine={{ stroke: '#d8ddca' }} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fill: '#66745e', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#fffef6', border: '1px solid #cbd5b9', borderRadius: '12px', color: '#173500' }}
+                labelStyle={{ color: '#173500' }}
+                itemStyle={{ color: '#315711' }}
+              />
+              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
+                {barData.map((entry, i) => (
+                  <Cell key={i} fill={entry.score >= 7 ? '#5f9b3d' : entry.score >= 4 ? '#d8a70a' : '#d95d48'} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-      </motion.div>
+      </div>
 
       {/* Strengths & Improvements */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div className="card p-6">
           <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <ThumbsUp className="w-5 h-5 text-emerald-400" /> Strengths
+            <ThumbsUp className="w-5 h-5 text-[#5f9b3d]" /> Strengths
           </h3>
           {session.strengths?.length ? (
             <ul className="space-y-2">
               {session.strengths.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                  <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <CheckCircle className="w-4 h-4 text-[#5f9b3d] mt-0.5 flex-shrink-0" />
                   {s}
                 </li>
               ))}
@@ -114,13 +120,13 @@ export default function SessionResultPage() {
 
         <div className="card p-6">
           <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <Target className="w-5 h-5 text-amber-400" /> Areas to Improve
+            <Target className="w-5 h-5 text-[#d8a70a]" /> Areas to Improve
           </h3>
           {session.areasForImprovement?.length ? (
             <ul className="space-y-2">
               {session.areasForImprovement.map((a, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                  <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                  <Lightbulb className="w-4 h-4 text-[#d8a70a] mt-0.5 flex-shrink-0" />
                   {a}
                 </li>
               ))}
@@ -129,56 +135,16 @@ export default function SessionResultPage() {
         </div>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {radarData.length > 2 && (
-          <div className="card p-6">
-            <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-              <Star className="w-5 h-5 text-brand-400" /> Performance by Category
-            </h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="#2a2a4a" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                <Radar name="Score" dataKey="score" stroke="#6366f1" fill="#6366f1" fillOpacity={0.25} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        <div className="card p-6">
-          <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-violet-400" /> Score Per Question
-          </h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={barData} barSize={24}>
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis domain={[0, 10]} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: '#16162a', border: '1px solid #2a2a4a', borderRadius: '12px' }}
-                labelStyle={{ color: '#fff' }}
-                itemStyle={{ color: '#a5b4fc' }}
-              />
-              <Bar dataKey="score" radius={[6, 6, 0, 0]}>
-                {barData.map((entry, i) => (
-                  <Cell key={i} fill={entry.score >= 7 ? '#10b981' : entry.score >= 4 ? '#f59e0b' : '#ef4444'} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       {/* Recommended Resources */}
       {session.recommendedResources?.length > 0 && (
         <div className="card p-6">
           <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-brand-400" /> Recommended Resources
+            <BookOpen className="w-5 h-5 text-[#315711]" /> Recommended Resources
           </h3>
           <ul className="space-y-2">
             {session.recommendedResources.map((r, i) => (
               <li key={i} className="flex items-center gap-2 text-sm text-slate-300">
-                <span className="w-6 h-6 bg-brand-600/20 text-brand-400 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+                <span className="w-6 h-6 rounded-full bg-[#e8f24c] text-[#173500] flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
                 {r}
               </li>
             ))}
@@ -189,22 +155,22 @@ export default function SessionResultPage() {
       {/* Detailed Answers */}
       <div className="card p-6">
         <h3 className="font-semibold text-white mb-5 flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-amber-400" /> Question-by-Question Review
+          <Trophy className="w-5 h-5 text-[#d8a70a]" /> Question-by-Question Review
         </h3>
         <div className="space-y-3">
           {session.answers.map((answer, i) => {
             const isExpanded = expandedAnswer === i;
             const score = answer.aiScore ?? 0;
-            const color = score >= 7 ? 'text-emerald-400' : score >= 4 ? 'text-amber-400' : 'text-red-400';
+            const color = score >= 7 ? 'text-[#5f9b3d]' : score >= 4 ? 'text-[#d8a70a]' : 'text-[#d95d48]';
 
             return (
-              <div key={i} className="border border-surface-border rounded-xl overflow-hidden">
+              <div key={i} className="overflow-hidden rounded-xl border border-[#173500]/15 bg-[#fffef6]">
                 <button
                   onClick={() => setExpandedAnswer(isExpanded ? null : i)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-surface-hover transition-colors text-left"
+                  className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-[#f2f4e6]"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="w-7 h-7 bg-brand-600/20 text-brand-400 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+                    <span className="w-7 h-7 rounded-full bg-[#e8f24c] text-[#173500] flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
                     <p className="text-sm text-white truncate">{answer.questionText}</p>
                     {answer.skipped && <span className="badge-warning badge flex-shrink-0">Skipped</span>}
                   </div>
@@ -218,7 +184,7 @@ export default function SessionResultPage() {
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="border-t border-surface-border p-4 space-y-4 bg-surface"
+                    className="space-y-4 border-t border-[#173500]/15 bg-[#f7f5e9] p-4"
                   >
                     {answer.answerText && (
                       <div>
@@ -227,9 +193,9 @@ export default function SessionResultPage() {
                       </div>
                     )}
                     {answer.aiFeedback && (
-                      <div className="p-3 rounded-lg bg-brand-600/10 border border-brand-500/20">
-                        <p className="text-xs text-brand-400 mb-1 uppercase tracking-wide">AI Feedback</p>
-                        <p className="text-brand-200 text-sm leading-relaxed">{answer.aiFeedback}</p>
+                      <div className="rounded-lg border border-[#a9ce85] bg-[#e8f24c]/20 p-3">
+                        <p className="mb-1 text-xs uppercase tracking-wide text-[#315711]">AI Feedback</p>
+                        <p className="text-sm leading-relaxed text-slate-300">{answer.aiFeedback}</p>
                       </div>
                     )}
                   </motion.div>
