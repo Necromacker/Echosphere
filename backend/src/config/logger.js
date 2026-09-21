@@ -1,7 +1,9 @@
 const winston = require('winston');
 
 const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
+  // Default to info so ✅ MongoDB connected / 🚀 Server running / startup
+  // details are visible in production too. Set LOG_LEVEL=warn|error to quiet.
+  level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),

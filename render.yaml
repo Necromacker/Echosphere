@@ -19,6 +19,10 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Shows info logs (MongoDB connected, request details) in Render logs.
+      # Set to warn if you want minimal output.
+      - key: LOG_LEVEL
+        value: info
 
       # 👉 Must match your Netlify site URL exactly (no trailing slash).
       # Used by CORS + Socket.io origin checks.

@@ -110,7 +110,9 @@ The app runs fine with Redis off (`REDIS_ENABLED=false`). To enable caching:
 
 | Symptom | Cause / Fix |
 |---|---|
-| CORS errors in browser console | `CLIENT_URL` on Render mismatches Netlify URL (trailing slash / http vs https) |
+| Production logs are empty — no `✅ MongoDB connected`, no startup lines | Winston level is `info` by default now, but on an older deploy `NODE_ENV=production` suppressed all info logs. Redeploy with the logger fix or set `LOG_LEVEL=info` on Render. The `username_1` warning proving Mongo connected only prints *after* a successful connect |
+| `/api/health` returns plain-text 404 with a `vercel.app` CORS header | You're hitting a **stale service** that still owns the hostname. Copy the exact URL from the Render **service whose logs show the new code** (its subdomain differs if `echosphere-api` was taken), update `VITE_API_URL`, and redeploy |
+| CORS errors in browser console | `CLIENT_URL` on Render mismatches Netlify URL (trailing slash / http vs https). Test with `curl -I -X OPTIONS -H 'Origin: https://your-site.netlify.app' <backend>/api/health` — a missing `access-control-allow-origin` header = still not whitelisted |
 | API calls return `index.html` | `VITE_API_URL` unset at build time — set in `netlify.toml` and redeploy |
 | First request takes ~30–60s | Free-tier cold start after idle — expected; the `/api/health` endpoint warms it up |
 | Build/OOM failure | `@xenova/transformers` + LangChain are memory-heavy. On free instances (512 MB) upgrade to paid if reproducible |
