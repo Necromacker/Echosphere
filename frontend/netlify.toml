@@ -10,7 +10,8 @@
   publish = "dist"
 
 [build.environment]
-  VITE_API_URL = "https://echosphere-api.onrender.com/api"
+VITE_API_URL = "https://echosphere-api-6nyq.onrender.com/api"   # ✅ correct
+
 
 # SPA fallback: let React Router handle client-side routes
 [[redirects]]

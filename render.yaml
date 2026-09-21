@@ -27,7 +27,7 @@ services:
       # 👉 Must match your Netlify site URL exactly (no trailing slash).
       # Used by CORS + Socket.io origin checks.
       - key: CLIENT_URL
-        value: https://your-site-name.netlify.app
+        value: https://inter-we-u.netlify.app
 
       # Start without Redis (free tier). To enable production caching:
       #   1) Create a FREE Upstash Redis  →  https://upstash.com
