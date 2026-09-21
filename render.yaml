@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────
+# Echosphere — Backend Render Blueprint
+# Deploy: https://dashboard.render.com/select-repo?type=blueprint
+# Replace the values marked with 👉 before first deploy.
+# Secrets marked `sync: false` are prompted for during setup.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: echosphere-api
+    runtime: node
+    repo: https://github.com/Necromacker/Echosphere # 👉 your repo URL
+    plan: free
+    rootDir: backend
+    region: oregon # 👉 optional: frankfurt / singapore / virginia ...
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # 👉 Must match your Netlify site URL exactly (no trailing slash).
+      # Used by CORS + Socket.io origin checks.
+      - key: CLIENT_URL
+        value: https://your-site-name.netlify.app
+
+      # Start without Redis (free tier). To enable production caching:
+      #   1) Create a FREE Upstash Redis  →  https://upstash.com
+      #   2) Paste your `rediss://...` URL below in the Render dashboard
+      #   3) Flip REDIS_ENABLED to "true", then Redeploy
+      # The jobsCache util already degrades gracefully while disabled.
+      - key: REDIS_ENABLED
+        value: "false"
+      - key: REDIS_URL
+        sync: false # 👉 optional Upstash rediss:// URL — enables caching
+
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+
+      - key: ADZUNA_COUNTRY
+        value: gb
+
+      # ── Secrets (copy values from your local backend/.env) ──
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: ADZUNA_APP_ID
+        sync: false
+      - key: ADZUNA_APP_KEY
+        sync: false
+      - key: AGORA_APP_ID
+        sync: false
+      - key: AGORA_APP_CERTIFICATE
+        sync: false
+      - key: AGORA_CUSTOMER_ID
+        sync: false
+      - key: AGORA_CUSTOMER_SECRET
+        sync: false
+      - key: AGORA_BASIC_AUTH
+        sync: false
+      - key: AGORA_PIPELINE_ID
+        sync: false

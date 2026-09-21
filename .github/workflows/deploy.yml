@@ -1,0 +1,53 @@
+name: Deploy (Render + Netlify)
+
+# Fires deploy hooks only when the relevant code actually changed,
+# so a README-only push doesn't trigger useless rebuilds on both hosts.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # allows manual "Deploy" button in Actions tab
+
+jobs:
+  render:
+    name: Backend → Render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'render.yaml'
+
+      - name: Trigger Render deploy hook
+        if: steps.filter.outputs.backend == 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Backend changed → deploying to Render"
+          curl -f -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+  netlify:
+    name: Frontend → Netlify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+
+      - name: Trigger Netlify build hook
+        if: steps.filter.outputs.frontend == 'true'
+        env:
+          NETLIFY_BUILD_HOOK_URL: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+        run: |
+          echo "Frontend changed → building on Netlify"
+          curl -f -X POST "$NETLIFY_BUILD_HOOK_URL"

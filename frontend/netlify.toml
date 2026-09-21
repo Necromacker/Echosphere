@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+# Echosphere — Frontend Netlify config
+# 👉 Replace VITE_API_URL with your Render service URL after you
+#    create it (dashboard shows it as https://echosphere-api.onrender.com)
+# ─────────────────────────────────────────────────────────────
+
+[build]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  VITE_API_URL = "https://echosphere-api.onrender.com/api"
+
+# SPA fallback: let React Router handle client-side routes
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache hashed build assets aggressively
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
