@@ -5,6 +5,7 @@
 # ─────────────────────────────────────────────────────────────
 
 [build]
+  base = "frontend"             # 👈 build from the frontend/ subdirectory
   command = "npm ci && npm run build"
   publish = "dist"
 

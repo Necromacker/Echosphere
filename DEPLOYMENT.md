@@ -64,8 +64,13 @@ After changing env vars: **Manual Deploy → Deploy** (env changes never auto-de
    > ⚠️ `VITE_*` vars are baked in **at build time** — a plain env edit on
    > Netlify does nothing until you redeploy with them set.
 2. Netlify → **Add new site → Import an existing project** → pick GitHub repo.
-3. Settings are auto-read from `netlify.toml`:
-   build `npm ci && npm run build` · publish dir `dist` · SPA redirect `/* → /index.html`.
+3. Settings are auto-read from `netlify.toml` (**Base directory `frontend`** ·
+   build `npm ci && npm run build` · publish dir `dist` relative to base ·
+   SPA redirect `/* → /index.html`).
+   > ⚠️ If you configure these in the Netlify **UI**, the UI values **override**
+   > `netlify.toml`. If your build ran at the repo root and failed with
+   > `Missing script "build"`, you forgot the **Base directory = `frontend`**
+   > in **Build & deploy → Continuous deployment → Build settings**.
 
 ## 4. Optional: CI/CD via GitHub Actions
 

@@ -50,10 +50,13 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: OPENAI_API_KEY
+        sync: false # 👉 used by LangChain embeddings — value is in your local backend/.env
+      # Optional — only if your deployment uses these integrations:
       - key: RESEND_API_KEY
-        sync: false
+        sync: false # (optional) transactional email
       - key: PINECONE_API_KEY
-        sync: false
+        sync: false # (optional) vector DB
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY
