@@ -47,18 +47,29 @@ app.use(compression({
 }));
 
 // ─── CORS ─────────────────────────────────────────────────────────
+// Production origins that are always allowed (independent of env vars)
+const PRODUCTION_ORIGINS = [
+  'https://inter-we-u.netlify.app',
+];
+
+const getAllowedOrigins = () => {
+  const envOrigins = (process.env.CLIENT_URL || '')
+    .split(',')
+    .map(o => o.trim().replace(/\/$/, '').replace(/^['"]|['"]$/g, ''))
+    .filter(Boolean);
+
+  return [...new Set([...PRODUCTION_ORIGINS, ...envOrigins])];
+};
+
 const isAllowedOrigin = (origin) => {
   if (!origin) return true; // Allow mobile apps, curl, postman, server-to-server requests
 
   const normalizedOrigin = origin.replace(/\/$/, '');
-  const envOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://localhost:5174,http://localhost:3000')
-    .split(',')
-    .map(o => o.trim().replace(/\/$/, ''))
-    .filter(Boolean);
+  const allowed = getAllowedOrigins();
 
-  if (envOrigins.includes(normalizedOrigin)) return true;
+  if (allowed.includes(normalizedOrigin)) return true;
 
-  // Allow any localhost/127.0.0.1 port during development or local runs
+  // Allow any localhost/127.0.0.1 port during development
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
     return true;
   }
@@ -71,7 +82,7 @@ app.use(cors({
     if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
-      console.warn(`[CORS] Rejected origin: ${origin} (Allowed: ${process.env.CLIENT_URL || 'localhost origins'})`);
+      console.warn(`[CORS] Rejected origin: ${origin} (Allowed: ${getAllowedOrigins().join(', ')})`);
       callback(null, false);
     }
   },
