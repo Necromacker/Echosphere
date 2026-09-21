@@ -46,46 +46,9 @@ app.use(compression({
   },
 }));
 
-// ─── CORS ─────────────────────────────────────────────────────────
-// Production origins that are always allowed (independent of env vars)
-const PRODUCTION_ORIGINS = [
-  'https://inter-we-u.netlify.app',
-];
-
-const getAllowedOrigins = () => {
-  const envOrigins = (process.env.CLIENT_URL || '')
-    .split(',')
-    .map(o => o.trim().replace(/\/$/, '').replace(/^['"]|['"]$/g, ''))
-    .filter(Boolean);
-
-  return [...new Set([...PRODUCTION_ORIGINS, ...envOrigins])];
-};
-
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true; // Allow mobile apps, curl, postman, server-to-server requests
-
-  const normalizedOrigin = origin.replace(/\/$/, '');
-  const allowed = getAllowedOrigins();
-
-  if (allowed.includes(normalizedOrigin)) return true;
-
-  // Allow any localhost/127.0.0.1 port during development
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin)) {
-    return true;
-  }
-
-  return false;
-};
-
+// ─── CORS (allow all origins) ──────────────────────────────────────
 app.use(cors({
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`[CORS] Rejected origin: ${origin} (Allowed: ${getAllowedOrigins().join(', ')})`);
-      callback(null, false);
-    }
-  },
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
