@@ -6,6 +6,18 @@ const AGORA_APP_ID = process.env.AGORA_APP_ID || '6963e099c7c441f785c5ab1c9d7c47
 const AGORA_PIPELINE_ID = process.env.AGORA_PIPELINE_ID || '911fc6e0084f4111aea65a45e9a09afd';
 
 /**
+ * Which auth source to use:
+ *  1. AGORA_BASIC_AUTH        → precomputed "Basic <base64>" header (or raw base64)
+ *  2. AGORA_CUSTOMER_ID + SECRET → base64("customerId:customerSecret")
+ * NOTE: If AGORA_BASIC_AUTH is set on Render it OVERRIDES the customer ID/secret.
+ */
+const getAgoraAuthSource = () => {
+  if (process.env.AGORA_BASIC_AUTH) return 'AGORA_BASIC_AUTH';
+  if (process.env.AGORA_CUSTOMER_ID && process.env.AGORA_CUSTOMER_SECRET) return 'AGORA_CUSTOMER_ID+SECRET';
+  return 'MISSING';
+};
+
+/**
  * Generate HTTP Basic Auth header for Agora REST API
  */
 const getAgoraAuthHeader = () => {
@@ -22,7 +34,44 @@ const getAgoraAuthHeader = () => {
     return `Basic ${credentials}`;
   }
 
-  throw new Error('Agora credentials are not configured. Please set AGORA_CUSTOMER_ID and AGORA_CUSTOMER_SECRET in .env');
+  throw new Error(
+    'Agora REST API credentials are not configured. Set AGORA_CUSTOMER_ID and AGORA_CUSTOMER_SECRET ' +
+    '(or a precomputed AGORA_BASIC_AUTH) in the backend environment.'
+  );
+};
+
+/**
+ * Build a human-readable description of an axios failure against the
+ * Agora REST API so Render logs contain the ACTUAL reason Agora returned
+ * (e.g. reason: ServiceNotEnabled / InvalidPermission / TaskConflict).
+ */
+const describeAgoraError = (err) => {
+  const status = err.response?.status || err.code || 'n/a';
+  const body = err.response?.data;
+  let reason = err.message;
+  if (typeof body === 'string' && body.trim()) reason = body;
+  else if (body && typeof body === 'object') {
+    reason = body.reason || body.message || body.error || (body.requestId ? `requestId=${body.requestId}` : null) || reason;
+  }
+  return `HTTP ${status} → ${reason}`;
+};
+
+/**
+ * Print a startup status report of every Agora env var (values redacted)
+ * so it is immediately obvious from Render logs which secret is missing.
+ */
+const validateAgoraConfig = () => {
+  const keys = [
+    'AGORA_APP_ID',
+    'AGORA_PIPELINE_ID',
+    'AGORA_APP_CERTIFICATE',
+    'AGORA_CUSTOMER_ID',
+    'AGORA_CUSTOMER_SECRET',
+    'AGORA_BASIC_AUTH',
+  ];
+  const rows = keys.map((k) => `${k}=${process.env[k] ? 'set' : 'MISSING'}`);
+  logger.info(`[Agora] config check: ${rows.join(' | ')} | authSource=${getAgoraAuthSource()}`);
+  return rows;
 };
 
 /**
@@ -132,6 +181,13 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
   // Generate an RTC token for the AI agent's UID so it can join the secured channel
   const agentUid = 1000;
   const agentToken = generateUserRtcToken(channelName, agentUid);
+  if (!agentToken) {
+    logger.error(
+      '[Agora] Cannot start agent: AGORA_APP_CERTIFICATE is not configured, so no RTC token ' +
+      'can be generated for the agent to join the channel. The join API requires properties.token.'
+    );
+    throw new Error('Agora App Certificate is not configured on the server. Set AGORA_APP_CERTIFICATE to generate agent RTC tokens.');
+  }
 
   const payload = {
     name: channelName,
@@ -157,12 +213,18 @@ DO NOT ask or talk about any other question. Focus exclusively on Question 1.
   const url = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${AGORA_APP_ID}/join`;
 
   logger.info(`[Agora] Starting Conversational AI Agent for channel: ${channelName} with Question 1 only`);
-  const response = await axios.post(url, payload, {
-    headers: {
-      Authorization: authHeader,
-      'Content-Type': 'application/json'
-    }
-  });
+  let response;
+  try {
+    response = await axios.post(url, payload, {
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (err) {
+    logger.error(`[Agora] Join failed: ${describeAgoraError(err)} | url=${url} | authSource=${getAgoraAuthSource()} | requestBody=${JSON.stringify(payload)}`);
+    throw new Error(`Agora Conversational AI Agent join call failed: ${describeAgoraError(err)}`);
+  }
 
   if (response.data?.agent_id) {
     activeAgents.set(channelName, response.data.agent_id);
@@ -315,5 +377,9 @@ module.exports = {
   startAgent,
   updateAgentQuestion,
   speakAgentMessage,
-  stopAgent
+  stopAgent,
+  getAgoraAuthSource,
+  getAgoraAuthHeader,
+  describeAgoraError,
+  validateAgoraConfig
 };

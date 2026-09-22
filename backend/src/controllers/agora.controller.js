@@ -55,9 +55,14 @@ exports.startInterviewAgent = async (req, res, next) => {
         });
         logger.info(`[Agora] AI Agent started: ${agentResponse.agent_id}, status: ${agentResponse.status}`);
       } catch (agentErr) {
-        logger.error(`[Agora] Failed to start AI agent (delayed): ${agentErr.message}`, {
-          response: agentErr.response?.data
-        });
+        const statusCode = agentErr.response?.status;
+        const reason = agentErr.response?.data?.reason || agentErr.response?.data?.message || '';
+        logger.error(
+          `[Agora] Failed to start AI agent (delayed): ${agentErr.message}` +
+          (statusCode ? ` | status=${statusCode}` : '') +
+          (reason ? ` | reason=${reason}` : '') +
+          ` | body=${agentErr.response?.data ? JSON.stringify(agentErr.response.data) : 'n/a'}`
+        );
       }
     }, 2000); // 2-second delay gives the frontend time to join and publish mic
 

@@ -18,6 +18,14 @@ const PORT = process.env.PORT || 5000;
 
 const { connect: connectRedis } = require('./config/redis');
 
+// ─── Agora config self-check (printed at boot, values redacted) ────
+const { validateAgoraConfig } = require('./services/agoraAgent.service');
+try {
+  validateAgoraConfig();
+} catch (err) {
+  logger.warn(`[Agora] Config check skipped: ${err.message}`);
+}
+
 // ─── Start HTTP server after database initialization ───────────────
 let server;
 

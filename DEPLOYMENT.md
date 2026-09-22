@@ -118,3 +118,17 @@ The app runs fine with Redis off (`REDIS_ENABLED=false`). To enable caching:
 | Build/OOM failure | `@xenova/transformers` + LangChain are memory-heavy. On free instances (512 MB) upgrade to paid if reproducible |
 | Job lists empty / old | Redis cache stale — run `clearJobsCache()` or temporarily `REDIS_ENABLED=false` |
 | 401s after JWT changes | Restart login; tokens signed with old secrets are rejected |
+| Render logs `[Agora] Failed to start AI agent (delayed): Request failed with status code 401` | Agora REST API rejected your **Customer ID / Customer Secret** (or an **`AGORA_BASIC_AUTH`** that overrides them). Copy the pair fresh from **Agora Console → Project Management → your project → RESTful API**. If `AGORA_BASIC_AUTH` is set on Render it wins over `AGORA_CUSTOMER_ID`/`AGORA_CUSTOMER_SECRET` — delete the stale value. New deploy → **Manual Deploy** (env changes never auto-deploy) |
+| Browser console `AgoraRTCError CAN_NOT_GET_GATEWAY_SERVER: no active status` during `client.join()` | The App ID isn't an active Agora project. Verify `AGORA_APP_ID` matches a project with **Real-Time Communication (RTC)** activated and the **Conversational AI Agent** product enabled. A project created in the wrong region/account or an expired/free-tier-quota project returns `no active status`. Test the App ID with Agora's official [web demo](https://webdemo.agora.io/basicVideoCall/) before wiring it here |
+| After fixing credentials, agent still won't speak (`TaskConflict` / 409s) | The in-memory `activeAgents` map lost the agent ID after a server redeploy, so new launches use the same channel name while the old agent still runs. Call the `/stop` endpoint or wait for `idle_timeout` before retrying |
+
+## 8. Agora credentials cheat-sheet (where each value lives)
+
+| Env var | Found in Agora Console | Notes |
+|---|---|---|
+| `AGORA_APP_ID` | Project Management → project → **App ID** | Must be an enabled project with RTC activated |
+| `AGORA_APP_CERTIFICATE` | Project Management → project → **App Certificate** (enable it first) | Required — server mints RTC tokens with it; the browser **and** the AI agent both need tokens |
+| `AGORA_CUSTOMER_ID` | Project Management → project → **RESTful API** | Used for Basic auth to the Conversational AI REST API |
+| `AGORA_CUSTOMER_SECRET` | Project Management → project → **RESTful API** | Same project as the App ID — mismatched pairs → 401 |
+| `AGORA_BASIC_AUTH` | *optional* — precomputed `base64(customerId:customerSecret)` | If set, it **overrides** the two fields above |
+| `AGORA_PIPELINE_ID` | Conversational AI Studio → your published agent | Guides which TTS/LLM/ASR config the agent uses |
